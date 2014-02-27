@@ -454,11 +454,10 @@ void App::LoadServers()
 
 void App::Main(vector<string> args)
 {
-	cout << "\\|||||||||||||||||||||/" << endl;
-	cout << "-  Reaper " << REAPER_VERSION << " " << REAPER_PLATFORM << "  -" << endl;
-	cout << "-       BETA 4        -" << endl;
-	cout << "-   coded by mtrlt    -" << endl;
-	cout << "/|||||||||||||||||||||\\" << endl;
+	cout << "Scythe" << REAPER_VERSION << " " << REAPER_PLATFORM <<  endl;
+	cout << "Based on Reaper by mtrlt, continued by Chloride." << endl;
+     cout << "https://github.com/ChlorideCull/scythe" << endl;
+     cout << "==========================================" << endl;
 	cout << endl;
 	cout << endl;
 

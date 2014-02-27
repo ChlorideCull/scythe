@@ -4,7 +4,7 @@ project(reaper)
 
 ## Version ##
 
-set(REAPER_VERSION "v13")
+set(REAPER_VERSION "v13 Beta 5")
 
 ## Options ##
 
