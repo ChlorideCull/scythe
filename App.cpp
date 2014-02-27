@@ -186,7 +186,7 @@ void* LongPollThread(void* param)
 
 void App::Main(vector<string> args)
 {
-	cout << "Reaper version 0.03" << endl;
+	cout << "Reaper version 0.04" << endl;
 	if (args.size() < 5)
 	{
 		cout << "Syntax: " << args[0] << " host port user pass" << endl;

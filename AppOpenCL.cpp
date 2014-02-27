@@ -106,7 +106,6 @@ void* Reap(void* param)
 		clSetKernelArg(state->kernel, 1, sizeof(cl_mem), &state->CLbuffer[1]);
 		clSetKernelArg(state->kernel, 2, sizeof(cl_mem), &state->padbuffer);
 		clEnqueueNDRangeKernel(state->commandQueue, state->kernel, 1, NULL, &globalsize, &localsize, 0, NULL, NULL);
-		//clEnqueueTask(state->commandQueue, state->kernel, 0, NULL, NULL);
 		clEnqueueReadBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), kernel_output, 0, NULL, NULL);
 
 		for(uint i=0; i<256; ++i)
@@ -128,6 +127,10 @@ void* Reap(void* param)
 							if (testmem[512+i] > tempwork.target_share[31-i])
 							{
 								below=false;
+								break;
+							}
+							if (testmem[512+i] < tempwork.target_share[31-i])
+							{
 								break;
 							}
 						}
