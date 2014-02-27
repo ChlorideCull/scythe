@@ -36,31 +36,38 @@ uint32 BlockHash_1_rand(void)
 
 void BlockHash_Init()
 {
-    static unsigned char SomeArrogantText1[]="Back when I was born the world was different. As a kid I could run around the streets, build things in the forest, go to the beach and generally live a care free life. Sure I had video games and played them a fair amount but they didn't get in the way of living an adventurous life. The games back then were different too. They didn't require 40 hours of your life to finish. Oh the good old days, will you ever come back?";
-    static unsigned char SomeArrogantText2[]="Why do most humans not understand their shortcomings? The funny thing with the human brain is it makes everyone arrogant at their core. Sure some may fight it more than others but in every brain there is something telling them, HEY YOU ARE THE MOST IMPORTANT PERSON IN THE WORLD. THE CENTER OF THE UNIVERSE. But we can't all be that, can we? Well perhaps we can, introducing GODria, take 2 pills of this daily and you can be like RealSolid, lord of the universe.";
-    static unsigned char SomeArrogantText3[]="What's up with kids like artforz that think it's good to attack other's work? He spent a year in the bitcoin scene riding on the fact he took some other guys SHA256 opencl code and made a miner out of it. Bravo artforz, meanwhile all the false praise goes to his head and he thinks he actually is a programmer. Real programmers innovate and create new work, they win through being better coders with better ideas. You're not real artforz, and I hear you like furries? What's up with that? You shouldn't go on IRC when you're drunk, people remember the weird stuff.";
-    BlockHash_1_MemoryPAD8 = new unsigned char[BLOCKHASH_1_PADSIZE+8];  //need the +8 for memory overwrites
-    BlockHash_1_MemoryPAD32 = (uint32*)BlockHash_1_MemoryPAD8;
+	try 	
+	{ 	
+		static unsigned char SomeArrogantText1[]="Back when I was born the world was different. As a kid I could run around the streets, build things in the forest, go to the beach and generally live a care free life. Sure I had video games and played them a fair amount but they didn't get in the way of living an adventurous life. The games back then were different too. They didn't require 40 hours of your life to finish. Oh the good old days, will you ever come back?";
+		static unsigned char SomeArrogantText2[]="Why do most humans not understand their shortcomings? The funny thing with the human brain is it makes everyone arrogant at their core. Sure some may fight it more than others but in every brain there is something telling them, HEY YOU ARE THE MOST IMPORTANT PERSON IN THE WORLD. THE CENTER OF THE UNIVERSE. But we can't all be that, can we? Well perhaps we can, introducing GODria, take 2 pills of this daily and you can be like RealSolid, lord of the universe.";
+		static unsigned char SomeArrogantText3[]="What's up with kids like artforz that think it's good to attack other's work? He spent a year in the bitcoin scene riding on the fact he took some other guys SHA256 opencl code and made a miner out of it. Bravo artforz, meanwhile all the false praise goes to his head and he thinks he actually is a programmer. Real programmers innovate and create new work, they win through being better coders with better ideas. You're not real artforz, and I hear you like furries? What's up with that? You shouldn't go on IRC when you're drunk, people remember the weird stuff.";
+		BlockHash_1_MemoryPAD8 = new unsigned char[BLOCKHASH_1_PADSIZE+8];  //need the +8 for memory overwrites
+		BlockHash_1_MemoryPAD32 = (uint32*)BlockHash_1_MemoryPAD8;
 
-    BlockHash_1_Q[0] = 0x6970F271;
-    BlockHash_1_Q[1] = 0x6970F271 + PHI;
-    BlockHash_1_Q[2] = 0x6970F271 + PHI + PHI;
-    for (int i = 3; i < 4096; i++)  BlockHash_1_Q[i] = BlockHash_1_Q[i - 3] ^ BlockHash_1_Q[i - 2] ^ PHI ^ i;
-    BlockHash_1_c=362436;
-    BlockHash_1_i=4095;
+		BlockHash_1_Q[0] = 0x6970F271;
+		BlockHash_1_Q[1] = 0x6970F271 + PHI;
+		BlockHash_1_Q[2] = 0x6970F271 + PHI + PHI;
+		for (int i = 3; i < 4096; i++)  BlockHash_1_Q[i] = BlockHash_1_Q[i - 3] ^ BlockHash_1_Q[i - 2] ^ PHI ^ i;
+		BlockHash_1_c=362436;
+		BlockHash_1_i=4095;
 
-    int count1=0,count2=0,count3=0;
-    for(int x=0;x<(BLOCKHASH_1_PADSIZE/4)+2;x++)  BlockHash_1_MemoryPAD32[x] = BlockHash_1_rand();
-    for(int x=0;x<BLOCKHASH_1_PADSIZE+8;x++)
-    {
-        switch(BlockHash_1_MemoryPAD8[x]&3)
-        {
-            case 0: BlockHash_1_MemoryPAD8[x] ^= SomeArrogantText1[count1++]; if(count1>=sizeof(SomeArrogantText1)) count1=0; break;
-            case 1: BlockHash_1_MemoryPAD8[x] ^= SomeArrogantText2[count2++]; if(count2>=sizeof(SomeArrogantText2)) count2=0; break;
-            case 2: BlockHash_1_MemoryPAD8[x] ^= SomeArrogantText3[count3++]; if(count3>=sizeof(SomeArrogantText3)) count3=0; break;
-            case 3: BlockHash_1_MemoryPAD8[x] ^= 0xAA; break;
-        }
-    }
+		int count1=0,count2=0,count3=0;
+		for(int x=0;x<(BLOCKHASH_1_PADSIZE/4)+2;x++)  BlockHash_1_MemoryPAD32[x] = BlockHash_1_rand();
+		for(int x=0;x<BLOCKHASH_1_PADSIZE+8;x++)
+		{
+			switch(BlockHash_1_MemoryPAD8[x]&3)
+			{
+				case 0: BlockHash_1_MemoryPAD8[x] ^= SomeArrogantText1[count1++]; if(count1>=sizeof(SomeArrogantText1)) count1=0; break;
+				case 1: BlockHash_1_MemoryPAD8[x] ^= SomeArrogantText2[count2++]; if(count2>=sizeof(SomeArrogantText2)) count2=0; break;
+				case 2: BlockHash_1_MemoryPAD8[x] ^= SomeArrogantText3[count3++]; if(count3>=sizeof(SomeArrogantText3)) count3=0; break;
+				case 3: BlockHash_1_MemoryPAD8[x] ^= 0xAA; break;
+			}
+		}
+	} 	
+	catch(std::exception s) 	
+	{ 		
+		cout << "(3) Error: " << s.what() << endl; 	
+	}
 }
 
 void BlockHash_DeInit()
@@ -71,7 +78,7 @@ void BlockHash_DeInit()
 const uint32 PAD_MASK = BLOCKHASH_1_PADSIZE-1;
 typedef unsigned char uchar;
 
-bool BlockHash_1(unsigned char *p512bytes, unsigned char* final_hash)
+void BlockHash_1(unsigned char *p512bytes, unsigned char* final_hash)
 {
     //0->127   is the block header      (128)
     //128->191 is blake(blockheader)    (64)
@@ -84,12 +91,14 @@ bool BlockHash_1(unsigned char *p512bytes, unsigned char* final_hash)
     blake512_hash(work2,work1);
 
     //setup the 320 scratch with some base values
-    work3[0] = work2[15];
+#define WORKINIT(a,b,c)   work3[a] ^= work2[c]; \
+        if(work3[a]&0x80) work3[b]=work1[(b+work3[a])&127]; \
+        else              work3[b]=work2[(b+work3[a])&63];
+
+	work3[0] = work2[15];
     for(int x=1;x<320;x++)
     {
-        work3[x-1] ^= work2[x&63];
-        if(work3[x-1]<0x80) work3[x]=work2[(x+work3[x-1])&63];
-        else                work3[x]=work1[(x+work3[x-1])&127];
+		WORKINIT(x-1, x, x&63);
     }
 	
     #define READ_PAD8(offset) BlockHash_1_MemoryPAD8[(offset)&PAD_MASK]
@@ -120,5 +129,4 @@ bool BlockHash_1(unsigned char *p512bytes, unsigned char* final_hash)
 	}
 
 	Sha256(work1, final_hash);
-	return true;
 }

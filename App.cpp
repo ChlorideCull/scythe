@@ -84,42 +84,54 @@ bool getwork_now = false;
 
 void SubmitShare(Curl& curl, vector<uchar>& w)
 {
-	string ret = curl.SetWork(VectorToHexString(w));
-	Json::Value root;
-	Json::Reader reader;
-	bool parse_success = reader.parse(ret, root);
-	if (parse_success)
+	if (w.size() != 128)
 	{
-		Json::Value result = root.get("result", "null");
-		if (result.isObject())
+		cout << "SubmitShare: Size of share is " << w.size() << ", should be 128" << endl;
+		return;
+	}
+	try 	
+	{ 	
+		string ret = curl.SetWork(VectorToHexString(w));
+		Json::Value root;
+		Json::Reader reader;
+		bool parse_success = reader.parse(ret, root);
+		if (parse_success)
 		{
-			Json::Value work = result.get("work", "null");
-			if (work.isArray())
+			Json::Value result = root.get("result", "null");
+			if (result.isObject())
 			{
-				Json::Value innerobj = work.get(Json::Value::UInt(0), "");
-				if (innerobj.isObject())
+				Json::Value work = result.get("work", "null");
+				if (work.isArray())
 				{
-					Json::Value share_valid = innerobj.get("share_valid", "null");
-					if (share_valid.isBool())
+					Json::Value innerobj = work.get(Json::Value::UInt(0), "");
+					if (innerobj.isObject())
 					{
-						if (share_valid.asBool())
+						Json::Value share_valid = innerobj.get("share_valid", "null");
+						if (share_valid.isBool())
 						{
-							++shares_valid;
+							if (share_valid.asBool())
+							{
+								++shares_valid;
+							}
+							else
+							{
+								getwork_now = true;
+								++shares_invalid;
+							}
 						}
-						else
-						{
-							getwork_now = true;
-							++shares_invalid;
-						}
+						//Json::Value block_valid = innerobj.get("block_valid");
 					}
-					//Json::Value block_valid = innerobj.get("block_valid");
 				}
 			}
+			else
+			{
+				cout << "Weird response from server." << endl;
+			}
 		}
-		else
-		{
-			++shares_hwinvalid;
-		}
+	}
+	catch(std::exception s)
+	{
+		cout << "(3) Error: " << s.what() << endl;
 	}
 }
 
@@ -226,13 +238,16 @@ void* ShutdownThread(void* param)
 	return NULL;
 }
 
+#include <sstream>
+using std::stringstream;
+
 void App::Main(vector<string> args)
 {
-	cout << "/--------------------------------------\\" << endl;
-	cout << "|  Reaper version " << REAPER_VERSION << ", coded by mtrlt |" << endl;
-	cout << "|    Donations are welcome! Thanks!    |" << endl;
-	cout << "|  sPuLn5UqBWMBdZF4JVx9GGfFiX55rpKQwR  |" << endl;
-	cout << "\\--------------------------------------/" << endl;
+	cout << "\\||||||||||||||||||||||||||||||||||||||/" << endl;
+	cout << "-  Reaper " << REAPER_VERSION << " " << REAPER_PLATFORM << ", coded by mtrlt  -" << endl;
+	cout << "-    Donations are welcome! Thanks!    -" << endl;
+	cout << "-  sPuLn5UqBWMBdZF4JVx9GGfFiX55rpKQwR  -" << endl;
+	cout << "/||||||||||||||||||||||||||||||||||||||\\" << endl;
 	cout << endl;
 	if (args.size() < 5)
 	{
@@ -313,49 +328,62 @@ void App::Main(vector<string> args)
 	while(!shutdown_now)
 	{
 		Wait_ms(100);
+		clock_t timeclock = ticker();
+		if (timeclock - current_work_time >= WORK_EXPIRE_TIME_SEC*1000)
 		{
-			clock_t timeclock = ticker();
-			if (timeclock - current_work_time >= WORK_EXPIRE_TIME_SEC*1000)
+			if (!current_work.old)
 			{
-				if (!current_work.old)
-				{
-					cout << "Work too old... waiting for getwork." << endl;
-				}
-				current_work.old = true;
+				cout << "Work too old... waiting for getwork." << endl;
 			}
-			if (sharethread_active)
-			{
-				sharethread_active = false;
-				sharethread_update_time = timeclock;
-			}
-			if (timeclock-sharethread_update_time >= SHARE_THREAD_RESTART_THRESHOLD_SEC*1000)
-			{
-				cout << "Share thread messed up. Starting another one." << endl;
-				pthread_create(&sharethread, NULL, ShareThread, &curl);
-			}
-			if (getwork_now || timeclock - current_work_time >= work_update_period_ms)
-			{
-				Parse(curl.GetWork());
-				getwork_now = false;
-			}
-			if (timeclock - ticks >= 1000)
-			{
-				ullint totalhashes=0;
+			current_work.old = true;
+		}
+		if (sharethread_active)
+		{
+			sharethread_active = false;
+			sharethread_update_time = timeclock;
+		}
+		if (timeclock-sharethread_update_time >= SHARE_THREAD_RESTART_THRESHOLD_SEC*1000)
+		{
+			cout << "Share thread messed up. Starting another one." << endl;
+			pthread_create(&sharethread, NULL, ShareThread, &curl);
+		}
+		if (getwork_now || timeclock - workupdate >= work_update_period_ms)
+		{
+			Parse(curl.GetWork());
+			getwork_now = false;
+		}
+		if (timeclock - ticks >= 1000)
+		{
+			ullint totalhashesGPU=0;
 #ifndef CPU_MINING_ONLY
-				foreachgpu()
-				{
-					totalhashes += it->hashes;
-				}
+			foreachgpu()
+			{
+				totalhashesGPU += it->hashes;
+			}
 #endif
-				foreachcpu()
-				{
-					totalhashes += it->hashes;
-				}
-				ticks += (timeclock-ticks)/1000*1000;
-				float stalepercent = 100.0f*float(shares_invalid+shares_hwinvalid)/float(shares_invalid+shares_valid+shares_hwinvalid);
-				if (shares_valid+shares_invalid+shares_hwinvalid == 0)
-					stalepercent = 0.0f;
-				cout << dec << "   " << double(totalhashes)/(ticks-starttime) << " kH/s, shares: " << shares_valid << "|" << shares_invalid << "|" << shares_hwinvalid << ", invalid " << stalepercent << "%, time " << (ticks-starttime)/1000 << "s    \r";
+			ullint totalhashesCPU=0;
+			foreachcpu()
+			{
+				totalhashesCPU += it->hashes;
+			}
+
+			ticks += (timeclock-ticks)/1000*1000;
+			float stalepercent = 0.0f;
+			if (shares_valid+shares_invalid+shares_hwinvalid != 0)
+				stalepercent = 100.0f*float(shares_invalid+shares_hwinvalid)/float(shares_invalid+shares_valid+shares_hwinvalid);
+			if (ticks-starttime == 0)
+				cout << dec << "   ??? kH/s, shares: " << shares_valid << "|" << shares_invalid << "|" << shares_hwinvalid << ", invalid " << stalepercent << "%, " << (ticks-starttime)/1000 << "s    \r";
+			else
+			{
+				stringstream stream;
+				stream.precision(4);
+				if (totalhashesGPU != 0)
+					stream << "GPU " << double(totalhashesGPU)/(ticks-starttime) << "kH/s, ";
+				if (totalhashesCPU != 0)
+					stream << "CPU " << double(totalhashesCPU)/(ticks-starttime) << "kH/s, ";
+
+				cout << dec << stream.str() << "shares: " << shares_valid << "|" << shares_invalid << "|" << shares_hwinvalid << ", invalid " << stalepercent << "%, " << (ticks-starttime)/1000 << "s    \r";
+				cout.flush();
 			}
 		}
 	}

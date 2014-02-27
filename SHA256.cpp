@@ -27,6 +27,7 @@ uint rotl(uint x, uint y)
 #define R(x) (work[x] = (rotl(work[x-2],15)^rotl(work[x-2],13)^((work[x-2])>>10)) + work[x-7] + (rotl(work[x-15],25)^rotl(work[x-15],14)^((work[x-15])>>3)) + work[x-16])
 #define sharound(a,b,c,d,e,f,g,h,x,K) h+=Tr(e,7,21,26)+Ch(e,f,g)+K+x; d+=h; h+=Tr(a,10,19,30)+Ma(a,b,c);
 
+#define sharound_s(a,b,c,d,e,f,g,h,x) h+=Tr(e,7,21,26)+Ch(e,f,g)+x; d+=h; h+=Tr(a,10,19,30)+Ma(a,b,c);
 
 void Sha256_initialize(uint* s)
 {
@@ -133,17 +134,103 @@ void Sha256_round(uint* s, unsigned char* data)
 	s[7] += H;
 }
 
-uchar padding[64] = 
+const uint P[64] =
 {
-	0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+	0xc28a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+	0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19c0174,
+	0x649b69c1, 0xf9be478a, 0x0fe1edc6, 0x240ca60c, 0x4fe9346f, 0x4d1c84ab, 0x61b94f1e, 0xf6f993db,
+	0xe8465162, 0xad13066f, 0xb0214c0d, 0x695a0283, 0xa0323379, 0x2bd376e9, 0xe1d0537c, 0x03a244a0,
+	0xfc13a4a5, 0xfafda43e, 0x56bea8bb, 0x445ec9b6, 0x39907315, 0x8c0d4e9f, 0xc832dccc, 0xdaffb65b,
+	0x1fed4f61, 0x2f646808, 0x1ff32294, 0x2634ccd7, 0xb0ebdefa, 0xd6fc592b, 0xa63c5c8f, 0xbe9fbab9,
+	0x0158082c, 0x68969712, 0x51e1d7e1, 0x5cf12d0d, 0xc4be2155, 0x7d7c8a34, 0x611f2c60, 0x036324af,
+	0xa4f08d87, 0x9e3e8435, 0x2c6dae30, 0x11921afc, 0xb76d720e, 0x245f3661, 0xc3a65ecb, 0x43b9e908
 };
+
+void Sha256_round_padding(uint* s)
+{
+	uint A = s[0];
+	uint B = s[1];
+	uint C = s[2];
+	uint D = s[3];
+	uint E = s[4];
+	uint F = s[5];
+	uint G = s[6];
+	uint H = s[7];
+	sharound_s(A,B,C,D,E,F,G,H,P[0]);
+	sharound_s(H,A,B,C,D,E,F,G,P[1]);
+	sharound_s(G,H,A,B,C,D,E,F,P[2]);
+	sharound_s(F,G,H,A,B,C,D,E,P[3]);
+	sharound_s(E,F,G,H,A,B,C,D,P[4]);
+	sharound_s(D,E,F,G,H,A,B,C,P[5]);
+	sharound_s(C,D,E,F,G,H,A,B,P[6]);
+	sharound_s(B,C,D,E,F,G,H,A,P[7]);
+	sharound_s(A,B,C,D,E,F,G,H,P[8]);
+	sharound_s(H,A,B,C,D,E,F,G,P[9]);
+	sharound_s(G,H,A,B,C,D,E,F,P[10]);
+	sharound_s(F,G,H,A,B,C,D,E,P[11]);
+	sharound_s(E,F,G,H,A,B,C,D,P[12]);
+	sharound_s(D,E,F,G,H,A,B,C,P[13]);
+	sharound_s(C,D,E,F,G,H,A,B,P[14]);
+	sharound_s(B,C,D,E,F,G,H,A,P[15]);
+	sharound_s(A,B,C,D,E,F,G,H,P[16]);
+	sharound_s(H,A,B,C,D,E,F,G,P[17]);
+	sharound_s(G,H,A,B,C,D,E,F,P[18]);
+	sharound_s(F,G,H,A,B,C,D,E,P[19]);
+	sharound_s(E,F,G,H,A,B,C,D,P[20]);
+	sharound_s(D,E,F,G,H,A,B,C,P[21]);
+	sharound_s(C,D,E,F,G,H,A,B,P[22]);
+	sharound_s(B,C,D,E,F,G,H,A,P[23]);
+	sharound_s(A,B,C,D,E,F,G,H,P[24]);
+	sharound_s(H,A,B,C,D,E,F,G,P[25]);
+	sharound_s(G,H,A,B,C,D,E,F,P[26]);
+	sharound_s(F,G,H,A,B,C,D,E,P[27]);
+	sharound_s(E,F,G,H,A,B,C,D,P[28]);
+	sharound_s(D,E,F,G,H,A,B,C,P[29]);
+	sharound_s(C,D,E,F,G,H,A,B,P[30]);
+	sharound_s(B,C,D,E,F,G,H,A,P[31]);
+	sharound_s(A,B,C,D,E,F,G,H,P[32]);
+	sharound_s(H,A,B,C,D,E,F,G,P[33]);
+	sharound_s(G,H,A,B,C,D,E,F,P[34]);
+	sharound_s(F,G,H,A,B,C,D,E,P[35]);
+	sharound_s(E,F,G,H,A,B,C,D,P[36]);
+	sharound_s(D,E,F,G,H,A,B,C,P[37]);
+	sharound_s(C,D,E,F,G,H,A,B,P[38]);
+	sharound_s(B,C,D,E,F,G,H,A,P[39]);
+	sharound_s(A,B,C,D,E,F,G,H,P[40]);
+	sharound_s(H,A,B,C,D,E,F,G,P[41]);
+	sharound_s(G,H,A,B,C,D,E,F,P[42]);
+	sharound_s(F,G,H,A,B,C,D,E,P[43]);
+	sharound_s(E,F,G,H,A,B,C,D,P[44]);
+	sharound_s(D,E,F,G,H,A,B,C,P[45]);
+	sharound_s(C,D,E,F,G,H,A,B,P[46]);
+	sharound_s(B,C,D,E,F,G,H,A,P[47]);
+	sharound_s(A,B,C,D,E,F,G,H,P[48]);
+	sharound_s(H,A,B,C,D,E,F,G,P[49]);
+	sharound_s(G,H,A,B,C,D,E,F,P[50]);
+	sharound_s(F,G,H,A,B,C,D,E,P[51]);
+	sharound_s(E,F,G,H,A,B,C,D,P[52]);
+	sharound_s(D,E,F,G,H,A,B,C,P[53]);
+	sharound_s(C,D,E,F,G,H,A,B,P[54]);
+	sharound_s(B,C,D,E,F,G,H,A,P[55]);
+	sharound_s(A,B,C,D,E,F,G,H,P[56]);
+	sharound_s(H,A,B,C,D,E,F,G,P[57]);
+	sharound_s(G,H,A,B,C,D,E,F,P[58]);
+	sharound_s(F,G,H,A,B,C,D,E,P[59]);
+	sharound_s(E,F,G,H,A,B,C,D,P[60]);
+	sharound_s(D,E,F,G,H,A,B,C,P[61]);
+	sharound_s(C,D,E,F,G,H,A,B,P[62]);
+	sharound_s(B,C,D,E,F,G,H,A,P[63]);
+
+	s[0] += A;
+	s[1] += B;
+	s[2] +=	C;
+	s[3] += D;
+	s[4] += E;
+	s[5] += F;
+	s[6] += G;
+	s[7] += H;
+}
+
 
 //assumes input is 512 bytes
 void Sha256(unsigned char* in, unsigned char* out)
@@ -158,7 +245,7 @@ void Sha256(unsigned char* in, unsigned char* out)
 	Sha256_round(s, in+320);
 	Sha256_round(s, in+384);
 	Sha256_round(s, in+448);
-	Sha256_round(s, padding);
+	Sha256_round_padding(s);
 
 	uint* outi = (uint*)out;
 	for(uint i=0; i<8; ++i)

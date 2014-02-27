@@ -13,11 +13,6 @@ uint OpenCL::GetVectorSize()
 vector<_clState> GPUstates;
 #endif
 
-#define Ch(x, y, z) (z ^ (x & (y ^ z)))
-#define Ma(x, y, z) ((y & z) | (x & (y | z)))
-#define Tr(x,a,b,c) (rot(x,a)^rot(x,b)^rot(x,c))
-#define Wr(x,a,b,c) (rot(x,a)^rot(x,b)^(x>>c))
-
 extern pthread_mutex_t current_work_mutex;
 extern Work current_work;
 
@@ -49,6 +44,8 @@ extern ullint shares_hwinvalid;
 
 #include "RSHash.h"
 
+string VectorToHexString(vector<uchar> vec);
+
 #ifndef CPU_MINING_ONLY
 void* Reap_GPU(void* param)
 {
@@ -63,15 +60,19 @@ void* Reap_GPU(void* param)
 	uchar tempdata[512];
 	memset(tempdata, 0, 512);
 
-	clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[0], true, 0, BLAKE_READ_BUFFER_SIZE, tempdata, 0, NULL, NULL);
+	clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[0], true, 0, KERNEL_INPUT_SIZE, tempdata, 0, NULL, NULL);
 	clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), tempdata, 0, NULL, NULL);
 	clEnqueueWriteBuffer(state->commandQueue, state->padbuffer, true, 0, 1024*1024*4+8, BlockHash_1_MemoryPAD8, 0, NULL, NULL);
 
-	uchar finalhash[256];
-	memset(finalhash, 0, 256);
-
 	uint kernel_output[KERNEL_OUTPUT_SIZE] = {};
+
+	bool write_kernel_output = true;
+	bool write_kernel_input = true;
+
+	size_t base = 0;
 	
+	clSetKernelArg(state->kernel, 2, sizeof(cl_mem), &state->padbuffer);
+
 	while(!shutdown_now)
 	{
 		if (current_work.old)
@@ -85,60 +86,70 @@ void* Reap_GPU(void* param)
 			tempwork = current_work;
 			pthread_mutex_unlock(&current_work_mutex);
 			memcpy(tempdata, &tempwork.data[0], 128);
-			*(uint*)&tempdata[104] = state->thread_id;
+			*(uint*)&tempdata[100] = state->thread_id;
+			base = 0;
+			write_kernel_input = true;
 		}
 
-		*(uint*)&tempdata[76] = tempwork.ntime_at_getwork + (ticker()-tempwork.time)/1000;
+		ullint newtime = tempwork.ntime_at_getwork + (ticker()-tempwork.time)/1000;
+		if (*(ullint*)&tempdata[76] != newtime)
+		{
+			*(ullint*)&tempdata[76] = newtime;
+			write_kernel_input = true;
+		}
+		if (write_kernel_input)
+			clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[0], true, 0, KERNEL_INPUT_SIZE, tempdata, 0, NULL, NULL);
+		if (write_kernel_output)
+			clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), kernel_output, 0, NULL, NULL);
 
-		clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[0], true, 0, BLAKE_READ_BUFFER_SIZE, tempdata, 0, NULL, NULL);
-		clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), kernel_output, 0, NULL, NULL);
 		clSetKernelArg(state->kernel, 0, sizeof(cl_mem), &state->CLbuffer[0]);
 		clSetKernelArg(state->kernel, 1, sizeof(cl_mem), &state->CLbuffer[1]);
-		clSetKernelArg(state->kernel, 2, sizeof(cl_mem), &state->padbuffer);
-		clEnqueueNDRangeKernel(state->commandQueue, state->kernel, 1, NULL, &globalsize, &localsize, 0, NULL, NULL);
+
+		clEnqueueNDRangeKernel(state->commandQueue, state->kernel, 1, &base, &globalsize, &localsize, 0, NULL, NULL);
 		clEnqueueReadBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), kernel_output, 0, NULL, NULL);
 
+		write_kernel_input = false;
+		write_kernel_output = false;
 		for(uint i=0; i<KERNEL_OUTPUT_SIZE; ++i)
 		{
-			if (kernel_output[i] != 0)
+			if (kernel_output[i] == 0)
+				continue;
+			uint result = kernel_output[i];
+			uchar testmem[544];
+			memcpy(testmem, tempdata, 128);
+			*((uint*)&testmem[108]) = result;
+			BlockHash_1(testmem, testmem+512);
+
+			if (testmem[543] != 0 || testmem[542] != 0 || testmem[541] >= 0x80)
 			{
-				uint result = kernel_output[i];
-				*((uint*)&tempdata[108]) = result;
-				uchar testmem[544];
-				memcpy(testmem, tempdata, 128);
-				BlockHash_1(testmem, testmem+512);
-				vector<uchar> share(tempdata, tempdata+128);
-				bool below=true;
-				if (testmem[543] != 0 || testmem[542] != 0 || testmem[541] >= 0x80)
-				{
-					++shares_hwinvalid;
-				}
-				for(int j=31; j>=0; --j)
-				{
-					if (testmem[512+j] > tempwork.target_share[31-j])
-					{
-						below=false;
-						break;
-					}
-					if (testmem[512+j] < tempwork.target_share[31-j])
-					{
-						break;
-					}
-				}
-				if (below)
-				{
-					pthread_mutex_lock(&state->share_mutex);
-					state->shares_available = true;
-					state->shares.push_back(share);
-					pthread_mutex_unlock(&state->share_mutex);
-				}
-				kernel_output[i] = 0;
-				*((uint*)&tempdata[108]) = 0;
+				++shares_hwinvalid;
 			}
+			bool below=true;
+			for(int j=0; j<32; ++j)
+			{
+				if (testmem[543-j] > tempwork.target_share[j])
+				{
+					below=false;
+					break;
+				}
+				if (testmem[543-j] < tempwork.target_share[j])
+				{
+					break;
+				}
+			}
+			if (below)
+			{
+				vector<uchar> share(testmem, testmem+128);				
+				pthread_mutex_lock(&state->share_mutex);
+				state->shares_available = true;
+				state->shares.push_back(share);
+				pthread_mutex_unlock(&state->share_mutex);
+			}
+			kernel_output[i] = 0;
+			write_kernel_output = true;
 		}
 		state->hashes += globalconfs.global_worksize;
-
-		++*(uint*)&tempdata[100];
+		base += globalconfs.global_worksize;
 	}
 	pthread_exit(NULL);
 	return NULL;
@@ -240,7 +251,7 @@ void OpenCL::Init()
 	string source;
 	{
 		string filename = globalconfs.kernel;
-		FILE* filu = fopen(filename.c_str(), "r");
+		FILE* filu = fopen(filename.c_str(), "rb");
 		if (filu == NULL)
 		{
 			throw string("Couldn't find kernel file ") + globalconfs.kernel;
@@ -248,11 +259,16 @@ void OpenCL::Init()
 		fseek(filu, 0, SEEK_END);
 		uint size = ftell(filu);
 		fseek(filu, 0, SEEK_SET);
+		size_t readsize = 0;
 		for(uint i=0; i<size; ++i)
 		{
 			char c;
-			fread(&c, 1, 1, filu);
+			readsize += fread(&c, 1, 1, filu);
 			source.push_back(c);
+		}
+		if (readsize != size)
+		{
+			cout << "Read error while reading kernel source " << globalconfs.kernel << endl;
 		}
 	}
 
@@ -317,7 +333,11 @@ void OpenCL::Init()
 				{
 					filebinary = new uchar[size];
 					filebinarysize = size;
-					fread(filebinary, size, 1, filu);
+					size_t readsize = fread(filebinary, size, 1, filu);
+					if (readsize != size)
+					{
+						cout << "Read error while reading binary" << endl;
+					}
 				}
 				fclose(filu);
 			}
@@ -408,7 +428,7 @@ void OpenCL::Init()
 			if(status != CL_SUCCESS)
 				throw string("Error creating OpenCL command queue");
 
-			GPUstate.CLbuffer[0] = clCreateBuffer(clState.context, CL_MEM_READ_ONLY, BLAKE_READ_BUFFER_SIZE, NULL, &status);
+			GPUstate.CLbuffer[0] = clCreateBuffer(clState.context, CL_MEM_READ_ONLY, KERNEL_INPUT_SIZE, NULL, &status);
 			GPUstate.CLbuffer[1] = clCreateBuffer(clState.context, CL_MEM_WRITE_ONLY, KERNEL_OUTPUT_SIZE*sizeof(uint), NULL, &status);
 			GPUstate.padbuffer = clCreateBuffer(clState.context, CL_MEM_READ_ONLY, 1024*1024*4+8, NULL, &status);
 

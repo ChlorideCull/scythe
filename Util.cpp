@@ -61,11 +61,14 @@ clock_t ticker()
 	timeval t;
 	gettimeofday(&t, NULL);
 	unsigned long long l = ((unsigned long long)(t.tv_sec))*1000 + t.tv_usec/1000;
-	return l/1000;
+	return l;
 }
 
 void Wait_ms(uint n)
 {
-	usleep(n*1000);
+	timespec ts;
+	ts.tv_sec = 0;
+	ts.tv_nsec = n*1000000;
+	nanosleep(&ts, NULL);
 }
 #endif

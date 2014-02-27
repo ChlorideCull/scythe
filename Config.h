@@ -37,7 +37,7 @@ public:
 
 	uint GetValueCount(string key)
 	{
-		return config[key].size();
+		return (uint)config[key].size();
 	}
 	string GetConfigFileName();
 	void SetConfigFileName( string filename );

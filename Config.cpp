@@ -9,9 +9,18 @@ using std::pair;
 using std::ifstream;
 using std::ofstream;
 
+#include <cstdio>
+
 void Config::Load( string filename )
 {
 	SetConfigFileName(filename);
+	{
+		FILE* filu = fopen(GetConfigFileName().c_str(), "r");
+		if (filu == NULL)
+			throw string("Config file " + filename + " not found.");
+		fclose(filu);
+	}
+
 	map<string, string> config_values;
 	config_values["aggression"] = "uint";
 	config_values["worksize"] = "uint";

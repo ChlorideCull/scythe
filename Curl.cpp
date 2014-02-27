@@ -29,23 +29,43 @@ void Curl::Quit()
 string getworksentdata;
 size_t GetWorkWriteMemoryCallback(void *ptr, size_t size, size_t nmemb, void *data)
 {
-	for(uint i=0; i<size*nmemb; ++i)
-	{
-		char c = ((char*)ptr)[i];
-		getworksentdata.push_back(c);
+	try 	
+	{ 	
+		for(uint i=0; i<size*nmemb; ++i) 	
+		{ 		
+			if(ptr!=NULL) 		
+			{ 			
+				char c = ((char*)ptr)[i]; 			
+				getworksentdata.push_back(c); 		
+			} 	
+		}
+	} 	
+	catch(std::exception s) 	
+	{ 		
+		cout << "(1) Error: " << s.what() << endl; 	
 	}
-	return size*nmemb;
+	return size*nmemb; 
 }
 
 string setworksentdata;
 size_t SetWorkWriteMemoryCallback(void *ptr, size_t size, size_t nmemb, void *data)
 {
-	for(uint i=0; i<size*nmemb; ++i)
-	{
-		char c = ((char*)ptr)[i];
-		setworksentdata.push_back(c);
+	try 	
+	{ 	
+		for(uint i=0; i<size*nmemb; ++i) 	
+		{ 		
+			if(ptr!=NULL) 		
+			{ 			
+				char c = ((char*)ptr)[i]; 			
+				setworksentdata.push_back(c); 		
+			} 	
+		}
+	} 	
+	catch(std::exception s) 	
+	{ 		
+		cout << "(2) Error: " << s.what() << endl; 	
 	}
-	return size*nmemb;
+	return size*nmemb; 
 }
 
 string longpoll_url;

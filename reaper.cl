@@ -277,20 +277,16 @@ void Sha256_round_padding(uint* s)
   v[c] += v[d];						\
   v[b] = ROT( v[b] ^ v[c],11);				
 
-
 //assumes input is 512 bytes
 __kernel void search(__global uint8_t* in_param, __global uint* out_param, __global uint8_t* pad) 
 {
 	uchar in[512];
 	for(uint i=0; i<128; ++i)
-		in[i] = in_param[i];
+	in[i] = in_param[i];
 
 	uint nonce = get_global_id(0);
-		
-	in[108] = nonce&0xFF;
-	in[109] = (nonce>>8)&0xFF;
-	in[110] = (nonce>>16)&0xFF;
-	in[111] = (nonce>>24)&0xFF;
+	
+	*(uint*)(in+108) = nonce;
 
 	uint64_t h[8];
 	h[0]=0x6A09E667F3BCC908UL;
@@ -446,16 +442,16 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 	uint8_t* work3 = work2+64;
 //a = x-1, b = x, c = x&63
 #define WORKINIT(a,b,c)   work3[a] ^= work2[c]; \
-        if(work3[a]&0x80) work3[b]=in[(b+work3[a])&127]; \
-        else              work3[b]=work2[(b+work3[a])&63];
+		if(work3[a]&0x80) work3[b]=in[(b+work3[a])&0x7F]; \
+		else              work3[b]=work2[(b+work3[a])&0x3F];
 
 	
-    work3[0] = work2[15];
+	work3[0] = work2[15];
 	WORKINIT(0,1,1);
 	WORKINIT(1,2,2);
 	WORKINIT(2,3,3);
-    for(int x=4;x<64;++x)
-    {
+	for(int x=4;x<64;++x)
+	{
 		WORKINIT(x-1,x,x);
 		++x;
 		WORKINIT(x-1,x,x);
@@ -463,9 +459,9 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 		WORKINIT(x-1,x,x);
 		++x;
 		WORKINIT(x-1,x,x);
-    }
-    for(int x=64;x<320;++x)
-    {
+	}
+	for(int x=64;x<320;++x)
+	{
 		WORKINIT(x-1,x,x&63);
 		++x;
 		WORKINIT(x-1,x,x&63);
@@ -473,12 +469,10 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 		WORKINIT(x-1,x,x&63);
 		++x;
 		WORKINIT(x-1,x,x&63);
-    }
+	}
 
 	#define READ_PAD32_R(offset) ((uint)pad[offset] | (((uint)pad[offset+1])<<8) | (((uint)pad[offset+2])<<16) | (((uint)pad[offset+3])<<24))
 	
-	//#define READ_PAD32_R(offset) (*(__global uint*)(pad+offset))
-
 	#define READ_W32(offset) ((uint)work3[offset] + (((uint)work3[(offset)+1])<<8) + (((uint)work3[(offset)+2]&0x3F)<<16))
 
 	ushort* shortptr = (ushort*)(work3+310);
@@ -487,27 +481,27 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 	uint* uintptr = (uint*)(work3+312);
 	qCount |= ((uint64)*uintptr)<<16;
 
-    uint nExtra=(pad[(qCount+work3[300])&0x3FFFFF]>>3)+512;
-    for(uint x=1;x<nExtra;++x)
-    {
+	uint nExtra=(pad[(qCount+work3[300])&0x3FFFFF]>>3)+512;
+	for(uint x=1;x<nExtra;++x)
+	{
 		uint res = qCount&0x3FFFFF;
-        qCount+= READ_PAD32_R(res);
-        if(qCount&0x87878700)        ++work3[qCount%320];
+		qCount+= READ_PAD32_R(res);
+		if(qCount&0x87878700)        ++work3[qCount%320];
 
-        qCount-= pad[(qCount+work3[qCount%160])&0x3FFFFF];
-        if(qCount&0x80000000)   { qCount+= pad[qCount&0xFFFF]; }
-        else                    { res = qCount&0x20FAFB; qCount+= READ_PAD32_R(res); }
+		qCount-= pad[(qCount+work3[qCount%160])&0x3FFFFF];
+		if(qCount&0x80000000)   { qCount+= pad[qCount&0xFFFF]; }
+		else                    { res = qCount&0x20FAFB; qCount+= READ_PAD32_R(res); }
 
 		res = (qCount+work3[qCount%160]) & 0x3FFFFF;
-        qCount+= READ_PAD32_R(res);
-        if(qCount&0xF0000000)        ++work3[qCount%320];
+		qCount+= READ_PAD32_R(res);
+		if(qCount&0xF0000000)        ++work3[qCount%320];
 
 		res = READ_W32(qCount&0xFF);
-        qCount+= READ_PAD32_R(res);
+		qCount+= READ_PAD32_R(res);
 		work3[x%320]=work2[x&63]^(qCount&0xFF);
 
 		res = ((qCount>>32)+work3[x%200]) & 0x3FFFFF;
-        qCount+= READ_PAD32_R(res);
+		qCount+= READ_PAD32_R(res);
 		
 		//this is an ingenious optimization. gives +2.5% :-)
 		if (qCount&3)
@@ -525,8 +519,8 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 			*ram ^= qCount>>24;
 		}
 
-        qCount-= pad[x*x];
-        if((qCount&0x07)==0x01) ++x;
+		qCount-= pad[x*x];
+		if((qCount&0x07)==0x01) ++x;
 	}
 
 	uint s[8]= {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
@@ -543,7 +537,6 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 	
 	if ((s[7] & 0x80FFFF) == 0)
 	{
-		uint n2 = get_global_id(0);
-		out_param[n2&0xFF] = n2;
+		out_param[nonce&0xFF] = get_global_id(0);
 	}
 }

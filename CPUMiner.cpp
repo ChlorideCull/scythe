@@ -32,6 +32,9 @@ void* Reap_CPU(void* param)
 			memcpy(tempdata, &tempwork.data[0], 128);
 			*(uint*)&tempdata[104] = state->thread_id;
 		}
+
+		*(ullint*)&tempdata[76] = tempwork.ntime_at_getwork + (ticker()-tempwork.time)/1000;
+
 		BlockHash_1(tempdata, tempdata+512);
 		if (tempdata[542] == 0 && tempdata[543] == 0)
 		{
@@ -58,7 +61,7 @@ void* Reap_CPU(void* param)
 			}
 		}
 		++state->hashes;
-		++*(uint*)&tempdata[100];
+		++*(ullint*)&tempdata[96];
 	}
 	pthread_exit(NULL);
 	return NULL;
