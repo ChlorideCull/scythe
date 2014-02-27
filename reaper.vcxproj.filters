@@ -17,6 +17,7 @@
       <Filter>Hashing</Filter>
     </ClCompile>
     <ClCompile Include="AppOpenCL.cpp" />
+    <ClCompile Include="CPUMiner.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h" />
@@ -33,6 +34,7 @@
       <Filter>Hashing</Filter>
     </ClInclude>
     <ClInclude Include="AppOpenCL.h" />
+    <ClInclude Include="CPUMiner.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="json_internalarray.inl" />

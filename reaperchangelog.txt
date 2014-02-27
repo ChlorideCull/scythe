@@ -1,0 +1,9 @@
+New in reaper 0.07:
+added changelog
+platform choosing
+recompile kernel on each new reaper version
+not using clock() for timer on linux any more
+count and report hardware errors
+graceful shutdown code
+way to compile cpu-only miner
+lower cpu mining thread priority

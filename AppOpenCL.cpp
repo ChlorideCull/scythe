@@ -9,17 +9,14 @@ uint OpenCL::GetVectorSize()
 	return 2;
 }
 
+#ifndef CPU_MINING_ONLY
 vector<_clState> GPUstates;
+#endif
 
 #define Ch(x, y, z) (z ^ (x & (y ^ z)))
 #define Ma(x, y, z) ((y & z) | (x & (y | z)))
 #define Tr(x,a,b,c) (rot(x,a)^rot(x,b)^rot(x,c))
 #define Wr(x,a,b,c) (rot(x,a)^rot(x,b)^(x>>c))
-
-uint rot(uint a, uint b)
-{
-	return (a>>b) | (a<<(32-b));
-}
 
 extern pthread_mutex_t current_work_mutex;
 extern Work current_work;
@@ -48,8 +45,11 @@ struct BLOCK_DATA
 
 extern unsigned char *BlockHash_1_MemoryPAD8;
 
+extern ullint shares_hwinvalid;
+
 #include "RSHash.h"
 
+#ifndef CPU_MINING_ONLY
 void* Reap_GPU(void* param)
 {
 	_clState* state = (_clState*)param;
@@ -72,7 +72,7 @@ void* Reap_GPU(void* param)
 
 	uint kernel_output[KERNEL_OUTPUT_SIZE] = {};
 	
-	while(true)
+	while(!shutdown_now)
 	{
 		if (current_work.old)
 		{
@@ -87,6 +87,7 @@ void* Reap_GPU(void* param)
 			memcpy(tempdata, &tempwork.data[0], 128);
 			*(uint*)&tempdata[104] = state->thread_id;
 		}
+
 		clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[0], true, 0, BLAKE_READ_BUFFER_SIZE, tempdata, 0, NULL, NULL);
 		clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), kernel_output, 0, NULL, NULL);
 		clSetKernelArg(state->kernel, 0, sizeof(cl_mem), &state->CLbuffer[0]);
@@ -95,40 +96,39 @@ void* Reap_GPU(void* param)
 		clEnqueueNDRangeKernel(state->commandQueue, state->kernel, 1, NULL, &globalsize, &localsize, 0, NULL, NULL);
 		clEnqueueReadBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), kernel_output, 0, NULL, NULL);
 
-		for(uint i=0; i<256; ++i)
+		for(uint i=0; i<KERNEL_OUTPUT_SIZE; ++i)
 		{
 			if (kernel_output[i] != 0)
 			{
 				uint result = kernel_output[i];
 				*((uint*)&tempdata[108]) = result;
+				uchar testmem[544];
+				memcpy(testmem, tempdata, 128);
+				BlockHash_1(testmem, testmem+512);
+				vector<uchar> share(tempdata, tempdata+128);
+				bool below=true;
+				if (testmem[543] != 0 || testmem[542] != 0 || testmem[541] >= 0x80)
 				{
-					uchar testmem[544];
-					memcpy(testmem, tempdata, 128);
-					BlockHash_1(testmem, testmem+512);
-					if (testmem[541] < 0x7F)
+					++shares_hwinvalid;
+				}
+				for(int j=31; j>=0; --j)
+				{
+					if (testmem[512+j] > tempwork.target_share[31-j])
 					{
-						vector<uchar> share(tempdata, tempdata+128);
-						bool below=true;
-						for(int i=31; i>=0; --i)
-						{
-							if (testmem[512+i] > tempwork.target_share[31-i])
-							{
-								below=false;
-								break;
-							}
-							if (testmem[512+i] < tempwork.target_share[31-i])
-							{
-								break;
-							}
-						}
-						if (below)
-						{
-							pthread_mutex_lock(&state->share_mutex);
-							state->shares_available = true;
-							state->shares.push_back(share);
-							pthread_mutex_unlock(&state->share_mutex);
-						}
+						below=false;
+						break;
 					}
+					if (testmem[512+j] < tempwork.target_share[31-j])
+					{
+						break;
+					}
+				}
+				if (below)
+				{
+					pthread_mutex_lock(&state->share_mutex);
+					state->shares_available = true;
+					state->shares.push_back(share);
+					pthread_mutex_unlock(&state->share_mutex);
 				}
 				kernel_output[i] = 0;
 				*((uint*)&tempdata[108]) = 0;
@@ -139,12 +139,21 @@ void* Reap_GPU(void* param)
 		++*(uint*)&tempdata[100];
 	}
 	pthread_exit(NULL);
+	return NULL;
 }
 
 _clState clState;
 
+#endif
+
 void OpenCL::Init()
 {
+#ifdef CPU_MINING_ONLY
+	if (globalconfs.threads_per_device != 0)
+	{
+		cout << "This binary was built with CPU mining support only." << endl;
+	}
+#else
 	if (globalconfs.threads_per_device == 0)
 	{
 		cout << "No GPUs selected." << endl;
@@ -169,28 +178,36 @@ void OpenCL::Init()
 			throw string("Error getting OpenCL platform IDs");
 
 		unsigned int i;
+		cout << "List of platforms:" << endl;
 		for(i=0; i < numPlatforms; ++i)
 		{   
 			char pbuff[100];
 
-			status = clGetPlatformInfo( platforms[i], CL_PLATFORM_VENDOR, sizeof(pbuff), pbuff, NULL);
+			status = clGetPlatformInfo( platforms[i], CL_PLATFORM_NAME, sizeof(pbuff), pbuff, NULL);
 			if(status != CL_SUCCESS)
 			{   
 				delete [] platforms;
 				throw string("Error getting OpenCL platform info");
 			}
 
-			platform = platforms[i];
-			if(!strcmp(pbuff, "Advanced Micro Devices, Inc."))
-			{   
-				break;
-			}  
+			cout << "\t" << i << "\t" << pbuff << endl;
+			if (globalconfs.platform == i)
+			{
+				platform = platforms[i];
+			}
 		}   
 		delete [] platforms;
-	}   
-
-	if(platform == NULL) 
+	}
+	else
+	{
 		throw string("No OpenCL platforms found");
+	}
+
+	if (platform == NULL)
+	{
+		throw string("Chosen platform number does not exist");
+	}
+	cout << "Using platform number " << globalconfs.platform << endl;
 
 	cl_uint numDevices;
 	status = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 0, NULL, &numDevices);
@@ -285,7 +302,7 @@ void OpenCL::Init()
 			if (*p >= 33 && *p < 127)
 				filebinaryname += *p;
 		}
-		filebinaryname = globalconfs.kernel.substr(0,globalconfs.kernel.size()-3) + "." + filebinaryname + ".bin";
+		filebinaryname = globalconfs.kernel.substr(0,globalconfs.kernel.size()-3) + REAPER_VERSION + "." + filebinaryname + ".bin";
 		if (globalconfs.save_binaries)
 		{
 			FILE* filu = fopen(filebinaryname.c_str(), "rb");
@@ -424,6 +441,7 @@ void OpenCL::Init()
 		pthread_create(&GPUstates[i].thread, NULL, Reap_GPU, (void*)&GPUstates[i]);
 	}
 	cout << "done" << endl;
+#endif
 }
 
 void OpenCL::Quit()

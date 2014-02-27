@@ -123,6 +123,7 @@
     <ClCompile Include="App.cpp" />
     <ClCompile Include="Blake512.cpp" />
     <ClCompile Include="Config.cpp" />
+    <ClCompile Include="CPUMiner.cpp" />
     <ClCompile Include="Curl.cpp" />
     <ClCompile Include="json_reader.cpp" />
     <ClCompile Include="json_value.cpp" />
@@ -137,6 +138,7 @@
     <ClInclude Include="App.h" />
     <ClInclude Include="Blake512.h" />
     <ClInclude Include="Config.h" />
+    <ClInclude Include="CPUMiner.h" />
     <ClInclude Include="Curl.h" />
     <ClInclude Include="Global.h" />
     <ClInclude Include="json_batchallocator.h" />

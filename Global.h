@@ -27,9 +27,11 @@ struct GlobalConfs
 	string kernel;
 	bool save_binaries;
 	uint cputhreads;
+	uint platform;
 };
 
 extern GlobalConfs globalconfs;
+extern bool shutdown_now;
 
 const uint BLAKE_READ_BUFFER_SIZE = 128;
 const uint KERNEL_OUTPUT_SIZE = 256;
@@ -39,5 +41,7 @@ const uint SHARE_THREAD_RESTART_THRESHOLD_SEC = 20;
 
 #define foreachgpu() for(vector<_clState>::iterator it = GPUstates.begin(); it != GPUstates.end(); ++it)
 #define foreachcpu() for(vector<Reap_CPU_param>::iterator it = CPUstates.begin(); it != CPUstates.end(); ++it)
+
+#define REAPER_VERSION "0.07"
 
 #endif

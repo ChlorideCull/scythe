@@ -476,6 +476,8 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
     }
 
 	#define READ_PAD32_R(offset) ((uint)pad[offset] | (((uint)pad[offset+1])<<8) | (((uint)pad[offset+2])<<16) | (((uint)pad[offset+3])<<24))
+	
+	//#define READ_PAD32_R(offset) (*(__global uint*)(pad+offset))
 
 	#define READ_W32(offset) ((uint)work3[offset] + (((uint)work3[(offset)+1])<<8) + (((uint)work3[(offset)+2]&0x3F)<<16))
 
@@ -488,7 +490,6 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
     uint nExtra=(pad[(qCount+work3[300])&0x3FFFFF]>>3)+512;
     for(uint x=1;x<nExtra;++x)
     {
-	
 		uint res = qCount&0x3FFFFF;
         qCount+= READ_PAD32_R(res);
         if(qCount&0x87878700)        ++work3[qCount%320];
@@ -520,7 +521,7 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 		}
 		else
 		{
-			uint* ram = work3+qCount%316;
+			uint* ram = (uint*)(work3+qCount%316);
 			*ram ^= qCount>>24;
 		}
 
@@ -540,7 +541,7 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 	Sha256_round(s, in+448);
 	Sha256_round_padding(s);
 	
-	if ((s[7] & 0xFFFF) == 0)
+	if ((s[7] & 0x80FFFF) == 0)
 	{
 		uint n2 = get_global_id(0);
 		out_param[n2&0xFF] = n2;

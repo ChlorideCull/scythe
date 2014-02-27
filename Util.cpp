@@ -41,19 +41,29 @@ uint EndianSwap(uint n)
 
 #include <ctime>
 
+#ifdef WIN32
+#include "windows.h"
 clock_t ticker()
 {
+	//todo: convert to QueryPerformanceCounter
 	return clock()/(CLOCKS_PER_SEC/1000);
 }
 
-#ifdef WIN32
-#include "windows.h"
 void Wait_ms(uint n)
 {
 	Sleep(n);
 }
 #else
 #include <unistd.h>
+#include <sys/time.h>
+clock_t ticker()
+{
+	timeval t;
+	gettimeofday(&t, NULL);
+	unsigned long long l = ((unsigned long long)(t.tv_sec))*1000 + t.tv_usec/1000;
+	return l/1000;
+}
+
 void Wait_ms(uint n)
 {
 	usleep(n*1000);

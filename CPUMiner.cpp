@@ -17,7 +17,7 @@ void* Reap_CPU(void* param)
 	uchar tempdata[544];
 	memset(tempdata, 0, 512);
 
-	while(true)
+	while(!shutdown_now)
 	{
 		if (current_work.old)
 		{
@@ -61,6 +61,7 @@ void* Reap_CPU(void* param)
 		++*(uint*)&tempdata[100];
 	}
 	pthread_exit(NULL);
+	return NULL;
 }
 
 vector<Reap_CPU_param> CPUstates;
@@ -69,6 +70,9 @@ void CPUMiner::Init()
 {
 	if (globalconfs.cputhreads == 0)
 	{
+#ifdef CPU_MINING_ONLY
+		cout << "Config warning: cpu_mining_threads 0" << endl;
+#endif
 		return;
 	}
 	for(uint i=0; i<globalconfs.cputhreads; ++i)
@@ -90,7 +94,22 @@ void CPUMiner::Init()
 	for(uint i=0; i<CPUstates.size(); ++i)
 	{
 		cout << i+1 << "...";
-		pthread_create(&CPUstates[i].thread, NULL, Reap_CPU, (void*)&CPUstates[i]);
+		pthread_attr_t attr;
+	    pthread_attr_init(&attr);
+		int schedpolicy;
+		pthread_attr_getschedpolicy(&attr, &schedpolicy);
+		int schedmin = sched_get_priority_min(schedpolicy);
+		int schedmax = sched_get_priority_max(schedpolicy);
+		if (i==0 && schedmin == schedmax)
+		{
+			cout << "Warning: can't set thread priority" << endl;
+		}
+		sched_param schedp;
+		schedp.sched_priority = schedmin;
+		pthread_attr_setschedparam(&attr, &schedp);
+
+		pthread_create(&CPUstates[i].thread, &attr, Reap_CPU, (void*)&CPUstates[i]);
+		pthread_attr_destroy(&attr);
 	}
 	cout << "done" << endl;
 }

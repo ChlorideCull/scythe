@@ -20,6 +20,8 @@ void Config::Load( string filename )
 	config_values["kernel"] = "string";
 	config_values["save_binaries"] = "bool";
 	config_values["cpu_mining_threads"] = "uint";
+	config_values["platform"] = "uint";
+	config_values["enable_graceful_shutdown"] = "bool";
 
 
 	ifstream filu(GetConfigFileName().c_str());

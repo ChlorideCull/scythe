@@ -16,7 +16,9 @@ uchar HexToChar(char data)
 
 #include "AppOpenCL.h"
 
+#ifndef CPU_MINING_ONLY
 extern vector<_clState> GPUstates;
+#endif
 extern vector<Reap_CPU_param> CPUstates;
 
 uchar HexToChar(char h, char l)
@@ -69,9 +71,9 @@ void Wait_ms(uint n);
 Config config;
 GlobalConfs globalconfs;
 
-uint shares_valid = 0;
-uint shares_invalid = 0;
-uint shares_hwinvalid = 0;
+ullint shares_valid = 0;
+ullint shares_invalid = 0;
+ullint shares_hwinvalid = 0;
 clock_t current_work_time = 0;
 
 extern Work current_work;
@@ -135,10 +137,11 @@ void* ShareThread(void* param)
 	curl.SetHost(parent_curl->GetHost());
 	curl.SetPort(parent_curl->GetPort());
 
-	while(true)
+	while(!shutdown_now)
 	{
 		sharethread_active = true;
 		Wait_ms(100);
+#ifndef CPU_MINING_ONLY
 		foreachgpu()
 		{
 			if (!it->shares_available)
@@ -154,6 +157,7 @@ void* ShareThread(void* param)
 				v.pop_back();
 			}
 		}
+#endif
 		foreachcpu()
 		{
 			if (!it->shares_available)
@@ -171,6 +175,7 @@ void* ShareThread(void* param)
 		}
 	}
 	pthread_exit(NULL);
+	return NULL;
 }
 
 extern string longpoll_url;
@@ -197,17 +202,34 @@ void* LongPollThread(void* param)
 	curl.SetHost(parent_curl->GetHost());
 	curl.SetPort(parent_curl->GetPort());
 
-	while(true)
+	while(!shutdown_now)
 	{
 		p->app->Parse(curl.GetWork(longpoll_url, 60));
 	}
 	pthread_exit(NULL);
+	return NULL;
+}
+
+bool shutdown_now=false;
+void* ShutdownThread(void* param)
+{
+	cout << "Press [Q] and [Enter] to quit" << endl;
+	while(shutdown_now == false)
+	{
+		string s;
+		std::cin >> s;
+		if (s == "q" || s == "Q")
+			shutdown_now = true;
+	}
+	cout << "Quitting." << endl;
+	pthread_exit(NULL);
+	return NULL;
 }
 
 void App::Main(vector<string> args)
 {
 	cout << "/--------------------------------------\\" << endl;
-	cout << "|  Reaper version 0.06, coded by mtrlt |" << endl;
+	cout << "|  Reaper version " << REAPER_VERSION << ", coded by mtrlt |" << endl;
 	cout << "|    Donations are welcome! Thanks!    |" << endl;
 	cout << "|  sPuLn5UqBWMBdZF4JVx9GGfFiX55rpKQwR  |" << endl;
 	cout << "\\--------------------------------------/" << endl;
@@ -236,6 +258,7 @@ void App::Main(vector<string> args)
 		globalconfs.devices.push_back(config.GetValue<uint>("device", i));
 
 	globalconfs.cputhreads = config.GetValue<uint>("cpu_mining_threads");
+	globalconfs.platform = config.GetValue<uint>("platform");
 
 	if (globalconfs.local_worksize > globalconfs.global_worksize)
 	{
@@ -261,17 +284,25 @@ void App::Main(vector<string> args)
 
 	Parse(curl.GetWork());
 
+	const int work_update_period_ms = 8000;
+	/* LP is currently disabled
 	pthread_t longpollthread;
 	LongPollThreadParams lp_params;
-	int work_update_period_ms = 8000;
 	if (longpoll_active)
 	{
 		cout << "Activating long polling." << endl;
 		work_update_period_ms = 30000;
 		lp_params.app = this;
 		lp_params.curl = &curl;
-		pthread_create(&longpollthread, NULL, LongPollThread, &lp_params);
+		pfhread_create(&longpollthread, NULL, LongPollThread, &lp_params);
 	}
+	*/
+	if (config.GetValue<bool>("enable_graceful_shutdown"))
+	{
+		pthread_t shutdownthread;
+		pthread_create(&shutdownthread, NULL, ShutdownThread, NULL);
+	}
+
 
 	clock_t ticks = ticker();
 	clock_t starttime = ticker();
@@ -279,7 +310,7 @@ void App::Main(vector<string> args)
 
 	clock_t sharethread_update_time = ticker();
 
-	while(true)
+	while(!shutdown_now)
 	{
 		Wait_ms(100);
 		{
@@ -310,16 +341,18 @@ void App::Main(vector<string> args)
 			if (timeclock - ticks >= 1000)
 			{
 				ullint totalhashes=0;
+#ifndef CPU_MINING_ONLY
 				foreachgpu()
 				{
 					totalhashes += it->hashes;
 				}
+#endif
 				foreachcpu()
 				{
 					totalhashes += it->hashes;
 				}
 				ticks += (timeclock-ticks)/1000*1000;
-				float stalepercent = 100.0f*(float)shares_invalid/float(shares_invalid+shares_valid);
+				float stalepercent = 100.0f*float(shares_invalid+shares_hwinvalid)/float(shares_invalid+shares_valid+shares_hwinvalid);
 				if (shares_valid+shares_invalid == 0)
 					stalepercent = 0.0f;
 				cout << dec << "   " << double(totalhashes)/(ticks-starttime) << " kH/s, shares: " << shares_valid << "|" << shares_invalid << "|" << shares_hwinvalid << ", invalid " << stalepercent << "%, time " << (ticks-starttime)/1000 << "s    \r";

@@ -23,7 +23,7 @@ uint32 BlockHash_1_rand(void)
     BlockHash_1_i = (BlockHash_1_i + 1) & 4095;
     t = a * BlockHash_1_Q[BlockHash_1_i] + BlockHash_1_c;
     BlockHash_1_c = (t >> 32);
-    x = t + BlockHash_1_c;
+    x = (t + BlockHash_1_c)&0xFFFFFFFF;
     if (x < BlockHash_1_c)
     {
         x++;

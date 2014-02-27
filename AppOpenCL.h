@@ -13,6 +13,7 @@ public:
 
 #include "pthread.h"
 
+#ifndef CPU_MINING_ONLY
 #ifdef __APPLE_CC__
 #include <OpenCL/opencl.h>
 #else
@@ -22,10 +23,12 @@ public:
 #include "cl.h"
 #endif
 #endif
+#endif
 
 #include "Util.h"
 #include "App.h"
 
+#ifndef CPU_MINING_ONLY
 struct _clState
 {
 	cl_context context;
@@ -46,5 +49,6 @@ struct _clState
 
 	ullint hashes;
 };
+#endif
 
 #endif
