@@ -51,6 +51,7 @@ struct Work
 	vector<uchar> target_share;
 	bool old;
 	clock_t time;
+	ullint ntime_at_getwork;
 };
 
 #endif

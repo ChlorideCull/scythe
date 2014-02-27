@@ -88,6 +88,8 @@ void* Reap_GPU(void* param)
 			*(uint*)&tempdata[104] = state->thread_id;
 		}
 
+		*(uint*)&tempdata[76] = tempwork.ntime_at_getwork + (ticker()-tempwork.time)/1000;
+
 		clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[0], true, 0, BLAKE_READ_BUFFER_SIZE, tempdata, 0, NULL, NULL);
 		clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), kernel_output, 0, NULL, NULL);
 		clSetKernelArg(state->kernel, 0, sizeof(cl_mem), &state->CLbuffer[0]);

@@ -284,7 +284,7 @@ void App::Main(vector<string> args)
 
 	Parse(curl.GetWork());
 
-	const int work_update_period_ms = 8000;
+	const int work_update_period_ms = 2000;
 	/* LP is currently disabled
 	pthread_t longpollthread;
 	LongPollThreadParams lp_params;
@@ -353,7 +353,7 @@ void App::Main(vector<string> args)
 				}
 				ticks += (timeclock-ticks)/1000*1000;
 				float stalepercent = 100.0f*float(shares_invalid+shares_hwinvalid)/float(shares_invalid+shares_valid+shares_hwinvalid);
-				if (shares_valid+shares_invalid == 0)
+				if (shares_valid+shares_invalid+shares_hwinvalid == 0)
 					stalepercent = 0.0f;
 				cout << dec << "   " << double(totalhashes)/(ticks-starttime) << " kH/s, shares: " << shares_valid << "|" << shares_invalid << "|" << shares_hwinvalid << ", invalid " << stalepercent << "%, time " << (ticks-starttime)/1000 << "s    \r";
 			}
@@ -417,6 +417,7 @@ void App::Parse(string data)
 			cout << "target_share: " << result["target_share"].asString() << endl;
 		}
 		newwork.target_share = HexStringToVector(result["target_share"].asString().substr(2));
+		newwork.ntime_at_getwork = (*(ullint*)&newwork.data[76]) + 1;
 
 		current_work.time = ticker();
 		pthread_mutex_lock(&current_work_mutex);

@@ -42,6 +42,6 @@ const uint SHARE_THREAD_RESTART_THRESHOLD_SEC = 20;
 #define foreachgpu() for(vector<_clState>::iterator it = GPUstates.begin(); it != GPUstates.end(); ++it)
 #define foreachcpu() for(vector<Reap_CPU_param>::iterator it = CPUstates.begin(); it != CPUstates.end(); ++it)
 
-#define REAPER_VERSION "0.07"
+#define REAPER_VERSION "0.08"
 
 #endif
