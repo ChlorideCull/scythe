@@ -41,6 +41,18 @@ uint EndianSwap(uint n)
 
 #include <ctime>
 
+string humantime()
+{
+	time_t rawtime;
+	char formattedtime[100];
+	tm* timeinfo;
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+	strftime(formattedtime, 100, "%Y-%m-%d %H:%M:%S ", timeinfo);
+	string ret = formattedtime;
+	return ret;
+}
+
 #ifdef WIN32
 #include "windows.h"
 clock_t ticker()

@@ -24,25 +24,29 @@ uint nonce = 0;
 /*
 struct BLOCK_DATA
 {
-	int32 nVersion;
-	uint256 hashPrevBlock;
-	uint256 hashMerkleRoot;
-	int64 nBlockNum;
-	int64 nTime;
-	uint64 nNonce1;
-	uint64 nNonce2;
-	uint64 nNonce3;
-	uint32 nNonce4;
-	char miner_id[12];
-	uint32 dwBits;
+0	int32 nVersion;
+4	uint256 hashPrevBlock;
+36	uint256 hashMerkleRoot;
+68	int64 nBlockNum;
+76	int64 nTime;
+84	uint64 nNonce1;
+92	uint64 nNonce2;
+100	uint64 nNonce3;
+108	uint32 nNonce4;
+112 char miner_id[12];
+124	uint32 dwBits;
 };
 */
 
 extern unsigned char *BlockHash_1_MemoryPAD8;
+extern uint *BlockHash_1_MemoryPAD32;
 
 extern ullint shares_hwinvalid;
 
 #include "RSHash.h"
+
+#include <deque>
+using std::deque;
 
 string VectorToHexString(vector<uchar> vec);
 
@@ -62,7 +66,7 @@ void* Reap_GPU(void* param)
 
 	clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[0], true, 0, KERNEL_INPUT_SIZE, tempdata, 0, NULL, NULL);
 	clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), tempdata, 0, NULL, NULL);
-	clEnqueueWriteBuffer(state->commandQueue, state->padbuffer, true, 0, 1024*1024*4+8, BlockHash_1_MemoryPAD8, 0, NULL, NULL);
+	clEnqueueWriteBuffer(state->commandQueue, state->padbuffer32, true, 0, 1024*1024*4*sizeof(uint), BlockHash_1_MemoryPAD32, 0, NULL, NULL);
 
 	uint kernel_output[KERNEL_OUTPUT_SIZE] = {};
 
@@ -71,10 +75,36 @@ void* Reap_GPU(void* param)
 
 	size_t base = 0;
 	
-	clSetKernelArg(state->kernel, 2, sizeof(cl_mem), &state->padbuffer);
+	clSetKernelArg(state->kernel, 2, sizeof(cl_mem), &state->padbuffer32);
+
+	bool errorfree = true;
+
+	deque<uint> runtimes;
 
 	while(!shutdown_now)
 	{
+		if (globalconfs.max_aggression && !runtimes.empty())
+		{
+			uint avg_runtime=0;
+			for(deque<uint>::iterator it = runtimes.begin(); it != runtimes.end(); ++it)
+			{
+				avg_runtime += *it;
+			}
+			avg_runtime /= (uint)runtimes.size();
+			if (avg_runtime > TARGET_RUNTIME_MS+TARGET_RUNTIME_ALLOWANCE_MS)
+			{
+				globalsize -= localsize;
+			}
+			else if (avg_runtime*3 < TARGET_RUNTIME_MS-TARGET_RUNTIME_ALLOWANCE_MS)
+			{
+				globalsize = (globalsize+globalsize/2)/localsize*localsize;
+			}
+			else if (avg_runtime < TARGET_RUNTIME_MS-TARGET_RUNTIME_ALLOWANCE_MS)
+			{
+				globalsize += localsize;
+			}
+		}
+		clock_t starttime = ticker();
 		if (current_work.old)
 		{
 			Wait_ms(20);
@@ -105,7 +135,19 @@ void* Reap_GPU(void* param)
 		clSetKernelArg(state->kernel, 0, sizeof(cl_mem), &state->CLbuffer[0]);
 		clSetKernelArg(state->kernel, 1, sizeof(cl_mem), &state->CLbuffer[1]);
 
-		clEnqueueNDRangeKernel(state->commandQueue, state->kernel, 1, &base, &globalsize, &localsize, 0, NULL, NULL);
+		cl_int returncode;
+		returncode = clEnqueueNDRangeKernel(state->commandQueue, state->kernel, 1, &base, &globalsize, &localsize, 0, NULL, NULL);
+		//OpenCL throws CL_INVALID_KERNEL_ARGS randomly, let's just ignore them.
+		if (returncode != CL_SUCCESS && returncode != CL_INVALID_KERNEL_ARGS && errorfree)
+		{
+			cout << humantime() << "Error " << returncode << " while trying to run OpenCL kernel" << endl;
+			errorfree = false;
+		}
+		else if ((returncode == CL_SUCCESS || returncode == CL_INVALID_KERNEL_ARGS) && !errorfree)
+		{
+			cout << humantime() << "Previous OpenCL error cleared" << endl;
+			errorfree = true;
+		}
 		clEnqueueReadBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), kernel_output, 0, NULL, NULL);
 
 		write_kernel_input = false;
@@ -115,24 +157,25 @@ void* Reap_GPU(void* param)
 			if (kernel_output[i] == 0)
 				continue;
 			uint result = kernel_output[i];
-			uchar testmem[544];
+			uchar testmem[512];
+			uchar finalhash[32];
 			memcpy(testmem, tempdata, 128);
 			*((uint*)&testmem[108]) = result;
-			BlockHash_1(testmem, testmem+512);
+			BlockHash_1(testmem, finalhash);
 
-			if (testmem[543] != 0 || testmem[542] != 0 || testmem[541] >= 0x80)
+			if (finalhash[31] != 0 || finalhash[30] != 0 || finalhash[29] >= 0x80)
 			{
 				++shares_hwinvalid;
 			}
 			bool below=true;
 			for(int j=0; j<32; ++j)
 			{
-				if (testmem[543-j] > tempwork.target_share[j])
+				if (finalhash[31-j] > tempwork.target_share[j])
 				{
 					below=false;
 					break;
 				}
-				if (testmem[543-j] < tempwork.target_share[j])
+				if (finalhash[31-j] < tempwork.target_share[j])
 				{
 					break;
 				}
@@ -148,8 +191,15 @@ void* Reap_GPU(void* param)
 			kernel_output[i] = 0;
 			write_kernel_output = true;
 		}
-		state->hashes += globalconfs.global_worksize;
-		base += globalconfs.global_worksize;
+		if (errorfree)
+		{
+			state->hashes += globalsize;
+		}
+		base += globalsize;
+		clock_t endtime = ticker();
+		runtimes.push_back(uint(endtime-starttime));
+		if (runtimes.size() > RUNTIMES_SIZE)
+			runtimes.pop_front();
 	}
 	pthread_exit(NULL);
 	return NULL;
@@ -159,15 +209,17 @@ _clState clState;
 
 #endif
 
+#include "Config.h"
+extern Config config;
 void OpenCL::Init()
 {
 #ifdef CPU_MINING_ONLY
-	if (globalconfs.threads_per_device != 0)
+	if (globalconfs.threads_per_gpu != 0)
 	{
 		cout << "This binary was built with CPU mining support only." << endl;
 	}
 #else
-	if (globalconfs.threads_per_device == 0)
+	if (globalconfs.threads_per_gpu == 0)
 	{
 		cout << "No GPUs selected." << endl;
 		return;
@@ -235,7 +287,7 @@ void OpenCL::Init()
 	vector<cl_device_id> devices;
 	cl_device_id* devicearray = new cl_device_id[numDevices];
 
-	status = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, numDevices, devicearray, NULL);
+	status = clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, numDevices, devicearray, NULL);
 	if(status != CL_SUCCESS)
 		throw string("Error getting OpenCL device ID list");
 
@@ -248,36 +300,7 @@ void OpenCL::Init()
 	if(status != CL_SUCCESS) 
 		throw string("Error creating OpenCL context");
 
-	string source;
-	{
-		string filename = globalconfs.kernel;
-		FILE* filu = fopen(filename.c_str(), "rb");
-		if (filu == NULL)
-		{
-			throw string("Couldn't find kernel file ") + globalconfs.kernel;
-		}
-		fseek(filu, 0, SEEK_END);
-		uint size = ftell(filu);
-		fseek(filu, 0, SEEK_SET);
-		size_t readsize = 0;
-		for(uint i=0; i<size; ++i)
-		{
-			char c;
-			readsize += fread(&c, 1, 1, filu);
-			source.push_back(c);
-		}
-		if (readsize != size)
-		{
-			cout << "Read error while reading kernel source " << globalconfs.kernel << endl;
-		}
-	}
-
-	vector<size_t> sourcesizes;
-	sourcesizes.push_back(source.length());
-
-	const char* see = source.c_str();
 	cout << endl;
-
 	if (globalconfs.devices.empty())
 	{
 		cout << "Using all devices" << endl;
@@ -298,6 +321,38 @@ void OpenCL::Init()
 	
 	for(uint device_id=0; device_id<numDevices; ++device_id) 
 	{
+		string source;
+		string sourcefilename;
+		{
+			sourcefilename = config.GetCombiValue<string>("device", device_id, "kernel");
+			if (sourcefilename == "")
+				sourcefilename = config.GetValue<string>("kernel");
+			FILE* filu = fopen(sourcefilename.c_str(), "rb");
+			if (filu == NULL)
+			{
+				throw string("Couldn't find kernel file ") + sourcefilename;
+			}
+			fseek(filu, 0, SEEK_END);
+			uint size = ftell(filu);
+			fseek(filu, 0, SEEK_SET);
+			size_t readsize = 0;
+			for(uint i=0; i<size; ++i)
+			{
+				char c;
+				readsize += fread(&c, 1, 1, filu);
+				source.push_back(c);
+			}
+			if (readsize != size)
+			{
+				cout << "Read error while reading kernel source " << sourcefilename << endl;
+			}
+		}
+
+		vector<size_t> sourcesizes;
+		sourcesizes.push_back(source.length());
+
+		const char* see = source.c_str();
+
 		char pbuff[100];
 		status = clGetDeviceInfo(devices[device_id], CL_DEVICE_NAME, sizeof(pbuff), pbuff, NULL);
 		cout << "\t" << device_id << "\t" << pbuff;
@@ -317,10 +372,11 @@ void OpenCL::Init()
 		string filebinaryname;
 		for(char*p = &pbuff[0]; *p != 0; ++p)
 		{
-			if (*p >= 33 && *p < 127)
+			//get rid of unwanted characters in filenames
+			if (*p >= 33 && *p < 127 && *p != '\\' && *p != ':' && *p != '/' && *p != '*' && *p != '<' && *p != '>' && *p != '"' && *p != '?' && *p != '|')
 				filebinaryname += *p;
 		}
-		filebinaryname = globalconfs.kernel.substr(0,globalconfs.kernel.size()-3) + REAPER_VERSION + "." + filebinaryname + ".bin";
+		filebinaryname = sourcefilename.substr(0,sourcefilename.size()-3) + REAPER_VERSION + "." + filebinaryname + ".bin";
 		if (globalconfs.save_binaries)
 		{
 			FILE* filu = fopen(filebinaryname.c_str(), "rb");
@@ -334,7 +390,7 @@ void OpenCL::Init()
 					filebinary = new uchar[size];
 					filebinarysize = size;
 					size_t readsize = fread(filebinary, size, 1, filu);
-					if (readsize != size)
+					if (readsize != 1)
 					{
 						cout << "Read error while reading binary" << endl;
 					}
@@ -422,7 +478,7 @@ void OpenCL::Init()
 			cout << "Kernel build not successful: " << status << endl;
 			throw string("Error creating OpenCL kernel");
 		}
-		for(uint thread_id = 0; thread_id < globalconfs.threads_per_device; ++thread_id)
+		for(uint thread_id = 0; thread_id < globalconfs.threads_per_gpu; ++thread_id)
 		{
 			GPUstate.commandQueue = clCreateCommandQueue(clState.context, devices[device_id], 0, &status);
 			if(status != CL_SUCCESS)
@@ -430,7 +486,7 @@ void OpenCL::Init()
 
 			GPUstate.CLbuffer[0] = clCreateBuffer(clState.context, CL_MEM_READ_ONLY, KERNEL_INPUT_SIZE, NULL, &status);
 			GPUstate.CLbuffer[1] = clCreateBuffer(clState.context, CL_MEM_WRITE_ONLY, KERNEL_OUTPUT_SIZE*sizeof(uint), NULL, &status);
-			GPUstate.padbuffer = clCreateBuffer(clState.context, CL_MEM_READ_ONLY, 1024*1024*4+8, NULL, &status);
+			GPUstate.padbuffer32 = clCreateBuffer(clState.context, CL_MEM_READ_ONLY, 1024*1024*4*sizeof(uint), NULL, &status);
 
 			if(status != CL_SUCCESS)
 			{
@@ -442,7 +498,6 @@ void OpenCL::Init()
 
 			GPUstate.share_mutex = initializer;
 			GPUstate.shares_available = false;
-
 
 			GPUstate.vectors = GetVectorSize();
 			GPUstate.thread_id = device_id*numDevices+thread_id;

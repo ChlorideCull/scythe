@@ -123,10 +123,10 @@ void SubmitShare(Curl& curl, vector<uchar>& w)
 					}
 				}
 			}
-			else
-			{
-				cout << "Weird response from server." << endl;
-			}
+		}
+		else
+		{
+			cout << "Weird response from server." << endl;
 		}
 	}
 	catch(std::exception s)
@@ -244,7 +244,7 @@ using std::stringstream;
 void App::Main(vector<string> args)
 {
 	cout << "\\||||||||||||||||||||||||||||||||||||||/" << endl;
-	cout << "-  Reaper " << REAPER_VERSION << " " << REAPER_PLATFORM << ", coded by mtrlt  -" << endl;
+	cout << "-  Reaper " << REAPER_VERSION << " " << REAPER_PLATFORM << ", coded by mtrlt   -" << endl;
 	cout << "-    Donations are welcome! Thanks!    -" << endl;
 	cout << "-  sPuLn5UqBWMBdZF4JVx9GGfFiX55rpKQwR  -" << endl;
 	cout << "/||||||||||||||||||||||||||||||||||||||\\" << endl;
@@ -262,17 +262,37 @@ void App::Main(vector<string> args)
 	getworks = 0;
 	config.Load(config_name);
 	globalconfs.local_worksize = config.GetValue<uint>("worksize");
-	globalconfs.global_worksize = (1<<config.GetValue<uint>("aggression"));
-	globalconfs.threads_per_device = config.GetValue<uint>("threads_per_device");
-	globalconfs.kernel = config.GetValue<string>("kernel");
-	if (globalconfs.kernel == "")
-		globalconfs.kernel = "reaper.cl";
+	{
+		if (config.GetValue<string>("aggression") == "max")
+		{
+			globalconfs.global_worksize = 1<<11;
+			globalconfs.max_aggression = true;
+		}
+		else
+		{
+			globalconfs.global_worksize = (1<<config.GetValue<uint>("aggression"));
+			globalconfs.max_aggression = false;
+		}
+	}
+	globalconfs.threads_per_gpu = config.GetValue<uint>("threads_per_gpu");
+	if (config.GetValue<string>("kernel") == "")
+		config.SetValue("kernel", 0, "reaper.cl");
 	globalconfs.save_binaries = config.GetValue<bool>("save_binaries");
 	uint numdevices = config.GetValueCount("device");
 	for(uint i=0; i<numdevices; ++i)
 		globalconfs.devices.push_back(config.GetValue<uint>("device", i));
 
 	globalconfs.cputhreads = config.GetValue<uint>("cpu_mining_threads");
+
+#ifdef CPU_MINING_ONLY
+	if (globalconfs.cputhreads == 0)
+	{
+		throw string("cpu_mining_threads is zero. Nothing to do, quitting.");
+	}
+#endif
+	if (globalconfs.cputhreads == 0 && globalconfs.threads_per_gpu == 0)
+	{
+	}
 	globalconfs.platform = config.GetValue<uint>("platform");
 
 	if (globalconfs.local_worksize > globalconfs.global_worksize)
@@ -300,24 +320,23 @@ void App::Main(vector<string> args)
 	Parse(curl.GetWork());
 
 	const int work_update_period_ms = 2000;
-	/* LP is currently disabled
-	pthread_t longpollthread;
+
+	/*pthread_t longpollthread;
 	LongPollThreadParams lp_params;
 	if (longpoll_active)
 	{
 		cout << "Activating long polling." << endl;
-		work_update_period_ms = 30000;
+		//work_update_period_ms = 30000;
 		lp_params.app = this;
 		lp_params.curl = &curl;
-		pfhread_create(&longpollthread, NULL, LongPollThread, &lp_params);
-	}
-	*/
+		//pthread_create(&longpollthread, NULL, LongPollThread, &lp_params);
+	}*/
+
 	if (config.GetValue<bool>("enable_graceful_shutdown"))
 	{
 		pthread_t shutdownthread;
 		pthread_create(&shutdownthread, NULL, ShutdownThread, NULL);
 	}
-
 
 	clock_t ticks = ticker();
 	clock_t starttime = ticker();
@@ -333,7 +352,7 @@ void App::Main(vector<string> args)
 		{
 			if (!current_work.old)
 			{
-				cout << "Work too old... waiting for getwork." << endl;
+				cout << humantime() << "Work too old... waiting for getwork.    " << endl;
 			}
 			current_work.old = true;
 		}
@@ -344,7 +363,7 @@ void App::Main(vector<string> args)
 		}
 		if (timeclock-sharethread_update_time >= SHARE_THREAD_RESTART_THRESHOLD_SEC*1000)
 		{
-			cout << "Share thread messed up. Starting another one." << endl;
+			cout << humantime() << "Share thread messed up. Starting another one.   " << endl;
 			pthread_create(&sharethread, NULL, ShareThread, &curl);
 		}
 		if (getwork_now || timeclock - workupdate >= work_update_period_ms)
@@ -404,7 +423,7 @@ void App::Parse(string data)
 	workupdate = ticker();
 	if (data == "")
 	{
-		cout << "Couldn't connect to pool. Trying again in a few seconds..." << endl;
+		cout << humantime() << "Couldn't connect to pool. Trying again in a few seconds... " << endl;
 		return;
 	}
 	Json::Value root, result, error;
@@ -455,10 +474,10 @@ void App::Parse(string data)
 	}
 	else if (!error.isNull())
 	{
-		cout << error.asString() << endl;
-		cout << "Code " << error["code"].asInt() << ", \"" << error["message"].asString() << "\"" << endl;
+		cout << humantime() << error.asString() << endl;
+		cout << humantime() << "Code " << error["code"].asInt() << ", \"" << error["message"].asString() << "\"" << endl;
 	}
 got_error:
-	cout << "Error with pool: " << data << endl;
+	cout << humantime() << "Error with pool: " << data << endl;
 	return;
 }

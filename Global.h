@@ -18,16 +18,17 @@ typedef unsigned int uint;
 typedef unsigned short ushort;
 typedef unsigned char uchar;
 
+//this struct has been deprecated, possibly.
 struct GlobalConfs
 {
 	uint global_worksize;
 	uint local_worksize;
-	uint threads_per_device;
+	uint threads_per_gpu;
 	vector<uint> devices;
-	string kernel;
 	bool save_binaries;
 	uint cputhreads;
 	uint platform;
+	bool max_aggression;
 };
 
 extern GlobalConfs globalconfs;
@@ -39,10 +40,14 @@ const uint KERNEL_OUTPUT_SIZE = 256;
 const uint WORK_EXPIRE_TIME_SEC = 120;
 const uint SHARE_THREAD_RESTART_THRESHOLD_SEC = 20;
 
+const uint TARGET_RUNTIME_MS = 500;
+const uint TARGET_RUNTIME_ALLOWANCE_MS = 25;
+const uint RUNTIMES_SIZE = 16;
+
 #define foreachgpu() for(vector<_clState>::iterator it = GPUstates.begin(); it != GPUstates.end(); ++it)
 #define foreachcpu() for(vector<Reap_CPU_param>::iterator it = CPUstates.begin(); it != CPUstates.end(); ++it)
 
-#define REAPER_VERSION "0.09"
+#define REAPER_VERSION "v10"
 #if defined(_M_X64) || defined(__x86_64__)
 #define REAPER_PLATFORM "64-bit"
 #else

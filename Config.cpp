@@ -24,14 +24,13 @@ void Config::Load( string filename )
 	map<string, string> config_values;
 	config_values["aggression"] = "uint";
 	config_values["worksize"] = "uint";
-	config_values["threads_per_device"] = "uint";
+	config_values["threads_per_gpu"] = "uint";
 	config_values["device"] = "array";
 	config_values["kernel"] = "string";
 	config_values["save_binaries"] = "bool";
 	config_values["cpu_mining_threads"] = "uint";
 	config_values["platform"] = "uint";
 	config_values["enable_graceful_shutdown"] = "bool";
-
 
 	ifstream filu(GetConfigFileName().c_str());
 	while(!filu.eof())
@@ -44,11 +43,19 @@ void Config::Load( string filename )
 
 		if (config_values.find(prop) == config_values.end())
 		{
-			if (prop != "")
-				cout << "Warning: unknown property \"" << prop << "\" in configuration file." << endl;
-			continue;
+			bool fail = true;
+			CombiKey c = GetCombiKey(prop);
+			if (c.base != "" && c.id != -1 && c.prop != "")
+			{
+				fail = false;
+			}
+			if (fail)
+			{
+				if (prop != "")
+					cout << "Warning: unknown property \"" << prop << "\" in configuration file." << endl;
+				continue;
+			}
 		}
-
 		config[prop].push_back(value);
 	}
 }

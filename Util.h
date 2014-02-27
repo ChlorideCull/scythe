@@ -24,7 +24,7 @@ string ToString(T key)
 	return sstr.str();
 }
 
-string ToString(bool key, string truestring="true", string falsestring="false");
+string ToString(bool key, string truestring="yes", string falsestring="no");
 
 template<typename T>
 void SetValue(uchar* pos, T value)
@@ -44,6 +44,8 @@ uint EndianSwap(uint n);
 
 clock_t ticker();
 void Wait_ms(uint n);
+
+string humantime();
 
 struct Work
 {

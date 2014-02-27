@@ -36,7 +36,7 @@ struct _clState
 	cl_command_queue commandQueue;
 	cl_program program;
 	cl_mem CLbuffer[2];
-	cl_mem padbuffer;
+	cl_mem padbuffer32;
 
 	uint vectors;
 	uint thread_id;

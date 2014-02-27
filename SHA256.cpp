@@ -29,18 +29,6 @@ uint rotl(uint x, uint y)
 
 #define sharound_s(a,b,c,d,e,f,g,h,x) h+=Tr(e,7,21,26)+Ch(e,f,g)+x; d+=h; h+=Tr(a,10,19,30)+Ma(a,b,c);
 
-void Sha256_initialize(uint* s)
-{
-	s[0]=0x6a09e667;
-	s[1]=0xbb67ae85;
-	s[2]=0x3c6ef372;
-	s[3]=0xa54ff53a;
-	s[4]=0x510e527f;
-	s[5]=0x9b05688c;
-	s[6]=0x1f83d9ab;
-	s[7]=0x5be0cd19;
-}
-
 void Sha256_round(uint* s, unsigned char* data)
 {
 	uint work[64];
@@ -235,8 +223,7 @@ void Sha256_round_padding(uint* s)
 //assumes input is 512 bytes
 void Sha256(unsigned char* in, unsigned char* out)
 {
-	uint s[8];
-	Sha256_initialize(s);
+	uint s[8]= {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
 	Sha256_round(s, in);
 	Sha256_round(s, in+64);
 	Sha256_round(s, in+128);

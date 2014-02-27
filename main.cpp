@@ -4,6 +4,7 @@
 #include <stdexcept>
 
 #include "AppOpenCL.h"
+#include "Util.h"
 
 int main(int argc, char* argv[])
 {
@@ -19,18 +20,18 @@ int main(int argc, char* argv[])
 	}
 	catch(string s)
 	{
-		cout << "Error: " << s << endl;
+		cout << humantime() << "Error: " << s << endl;
 	}
 	catch(std::runtime_error s)
 	{
-		cout << "Runtime error: " << s.what() << endl;
+		cout << humantime() << "Runtime error: " << s.what() << endl;
 	}
 	catch(std::exception s)
 	{
-		cout << "Error: " << s.what() << endl;
+		cout << humantime() << "Exception: " << s.what() << endl;
 	}
 	catch(...)
 	{
-		cout << "Error." << endl;
+		cout << humantime() << "Unknown error." << endl;
 	}
 }

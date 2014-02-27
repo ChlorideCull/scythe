@@ -14,25 +14,27 @@ typedef unsigned long long int uint64;
 
 static uint32 BlockHash_1_Q[4096],BlockHash_1_c,BlockHash_1_i;
 unsigned char *BlockHash_1_MemoryPAD8;
+uint32 *BlockHash_1_MemoryPAD32_to_8;
 uint32 *BlockHash_1_MemoryPAD32;
 
 uint32 BlockHash_1_rand(void)
 {
-    uint32 x, r = 0xfffffffe;
-    uint64 t, a = 18782LL;
-    BlockHash_1_i = (BlockHash_1_i + 1) & 4095;
-    t = a * BlockHash_1_Q[BlockHash_1_i] + BlockHash_1_c;
+	uint32& pos = BlockHash_1_Q[BlockHash_1_i&0xFFF];
+    uint64 t = 0x495ELL * pos + BlockHash_1_c;
     BlockHash_1_c = (t >> 32);
-    x = (t + BlockHash_1_c)&0xFFFFFFFF;
+    uint32 x = (t + BlockHash_1_c)&0xFFFFFFFF;
     if (x < BlockHash_1_c)
     {
         x++;
         BlockHash_1_c++;
     }
-    return (BlockHash_1_Q[BlockHash_1_i] = r - x);
+    ++BlockHash_1_i;
+    return (pos = 0xffffffff + (~x));
 }
 
+
 #include <cstdio>
+#include <iomanip>
 
 void BlockHash_Init()
 {
@@ -42,17 +44,17 @@ void BlockHash_Init()
 		static unsigned char SomeArrogantText2[]="Why do most humans not understand their shortcomings? The funny thing with the human brain is it makes everyone arrogant at their core. Sure some may fight it more than others but in every brain there is something telling them, HEY YOU ARE THE MOST IMPORTANT PERSON IN THE WORLD. THE CENTER OF THE UNIVERSE. But we can't all be that, can we? Well perhaps we can, introducing GODria, take 2 pills of this daily and you can be like RealSolid, lord of the universe.";
 		static unsigned char SomeArrogantText3[]="What's up with kids like artforz that think it's good to attack other's work? He spent a year in the bitcoin scene riding on the fact he took some other guys SHA256 opencl code and made a miner out of it. Bravo artforz, meanwhile all the false praise goes to his head and he thinks he actually is a programmer. Real programmers innovate and create new work, they win through being better coders with better ideas. You're not real artforz, and I hear you like furries? What's up with that? You shouldn't go on IRC when you're drunk, people remember the weird stuff.";
 		BlockHash_1_MemoryPAD8 = new unsigned char[BLOCKHASH_1_PADSIZE+8];  //need the +8 for memory overwrites
-		BlockHash_1_MemoryPAD32 = (uint32*)BlockHash_1_MemoryPAD8;
+		BlockHash_1_MemoryPAD32_to_8 = (uint32*)BlockHash_1_MemoryPAD8;
 
 		BlockHash_1_Q[0] = 0x6970F271;
-		BlockHash_1_Q[1] = 0x6970F271 + PHI;
-		BlockHash_1_Q[2] = 0x6970F271 + PHI + PHI;
+		BlockHash_1_Q[1] = uint32(0x6970F271ULL + PHI);
+		BlockHash_1_Q[2] = uint32(0x6970F271ULL + PHI + PHI);
 		for (int i = 3; i < 4096; i++)  BlockHash_1_Q[i] = BlockHash_1_Q[i - 3] ^ BlockHash_1_Q[i - 2] ^ PHI ^ i;
 		BlockHash_1_c=362436;
-		BlockHash_1_i=4095;
+		BlockHash_1_i=0;
 
 		int count1=0,count2=0,count3=0;
-		for(int x=0;x<(BLOCKHASH_1_PADSIZE/4)+2;x++)  BlockHash_1_MemoryPAD32[x] = BlockHash_1_rand();
+		for(int x=0;x<(BLOCKHASH_1_PADSIZE/4)+2;x++)  BlockHash_1_MemoryPAD32_to_8[x] = BlockHash_1_rand();
 		for(int x=0;x<BLOCKHASH_1_PADSIZE+8;x++)
 		{
 			switch(BlockHash_1_MemoryPAD8[x]&3)
@@ -63,6 +65,9 @@ void BlockHash_Init()
 				case 3: BlockHash_1_MemoryPAD8[x] ^= 0xAA; break;
 			}
 		}
+		BlockHash_1_MemoryPAD32 = new uint32[BLOCKHASH_1_PADSIZE];
+		for(uint32 i=0; i<BLOCKHASH_1_PADSIZE; ++i)
+			BlockHash_1_MemoryPAD32[i] = *(uint32*)(BlockHash_1_MemoryPAD8+i);
 	} 	
 	catch(std::exception s) 	
 	{ 		
@@ -73,10 +78,17 @@ void BlockHash_Init()
 void BlockHash_DeInit()
 {
     delete[] BlockHash_1_MemoryPAD8;
+	delete[] BlockHash_1_MemoryPAD32;
 }
 
 const uint32 PAD_MASK = BLOCKHASH_1_PADSIZE-1;
 typedef unsigned char uchar;
+
+#define READ_PAD8(offset) BlockHash_1_MemoryPAD8[(offset)&PAD_MASK]
+#define READ_PAD32(offset) (*((uint32*)&BlockHash_1_MemoryPAD8[(offset)&PAD_MASK]))
+
+
+typedef unsigned int uint;
 
 void BlockHash_1(unsigned char *p512bytes, unsigned char* final_hash)
 {
@@ -101,12 +113,9 @@ void BlockHash_1(unsigned char *p512bytes, unsigned char* final_hash)
 		WORKINIT(x-1, x, x&63);
     }
 	
-    #define READ_PAD8(offset) BlockHash_1_MemoryPAD8[(offset)&PAD_MASK]
-    #define READ_PAD32(offset) (*((uint32*)&BlockHash_1_MemoryPAD8[(offset)&PAD_MASK]))
-
 	uint64 qCount = *((uint64*)&work3[310]);
-    int nExtra=READ_PAD8(qCount+work3[300])>>3;
-    for(int x=1;x<512+nExtra;x++)
+    int nExtra=(READ_PAD8(qCount+work3[300])>>3)+512;
+    for(int x=1;x<nExtra;x++)
     {
         qCount+= READ_PAD32( qCount );
         if(qCount&0x87878700)        work3[qCount%320]++;

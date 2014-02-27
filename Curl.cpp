@@ -2,6 +2,7 @@
 #include "Curl.h"
 
 #include "curl/curl.h"
+#include "Util.h"
 
 void Curl::GlobalInit()
 {
@@ -82,7 +83,8 @@ size_t HeaderCallback( void *ptr, size_t size, size_t nmemb, void *userdata)
 	{
 		longpoll_url = hdr.substr(0x10);
 		longpoll_url = longpoll_url.substr(0, longpoll_url.length()-2);
-		longpoll_active = false;
+		//cout << "Longpoll url -->" << longpoll_url << "<-- " << endl;
+		//longpoll_active = true;
 	}
 	return size*nmemb;
 }
@@ -117,11 +119,11 @@ string Curl::GetWork(string path, uint timeout)
 	{
 		if (code == CURLE_COULDNT_CONNECT)
 		{
-			cout << "Could not connect. Server down?" << endl;
+			cout << humantime() << "Could not connect. Server down?" << endl;
 		}
 		else
 		{
-			cout << "Error " << code << " getting work. See http://curl.haxx.se/libcurl/c/libcurl-errors.html for error code explanations." << endl;
+			cout << humantime() << "Error " << code << " getting work. See http://curl.haxx.se/libcurl/c/libcurl-errors.html for error code explanations." << endl;
 		}
 		return string("");
 	}
@@ -157,18 +159,16 @@ string Curl::SetWork(string work)
 	{
 		if (code == CURLE_COULDNT_CONNECT)
 		{
-			cout << "Could not connect. Server down?" << endl;
+			cout << humantime() << "Could not connect. Server down?" << endl;
 		}
 		else
 		{
-			cout << "Error " << code << " submitting work. See http://curl.haxx.se/libcurl/c/libcurl-errors.html for error code explanations." << endl;
+			cout << humantime() << "Error " << code << " submitting work. See http://curl.haxx.se/libcurl/c/libcurl-errors.html for error code explanations." << endl;
 		}
 	}
 	curl_slist_free_all(headerlist);
 	return setworksentdata;
 }
-
-#include "Util.h"
 
 #undef SetPort
 void Curl::SetPort(string port_) 
