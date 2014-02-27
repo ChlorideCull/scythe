@@ -36,14 +36,13 @@
 
 uint EndianSwap(uint n);
 
-void memorycopy(uint* dst, const uint* src, uint len)
+void memorycopy(uint * dst, const uint * src, uint len)
 {
-	for(uint i=0; i<len/4; ++i)
+	for (uint i = 0; i < len / 4; ++i)
 		dst[i] = src[i];
 }
 
-static inline void
-byteswap_vec(uint *dest, const uint *src, uint len)
+static inline void byteswap_vec(uint * dest, const uint * src, uint len)
 {
 	for (uint i = 0; i < len; i++)
 		dest[i] = EndianSwap(src[i]);
@@ -83,8 +82,7 @@ typedef struct SHA256Context {
  * SHA256 block compression function.  The 256-bit state is transformed via
  * the 512-bit input block to produce a new state.
  */
-static void
-SHA256_Transform(uint * state, const uint* block, int swap)
+static void SHA256_Transform(uint * state, const uint * block, int swap)
 {
 	uint W[64];
 	uint S[8];
@@ -92,13 +90,13 @@ SHA256_Transform(uint * state, const uint* block, int swap)
 	int i;
 
 	/* 1. Prepare message schedule W. */
-	if(swap)
+	if (swap)
 		byteswap_vec(W, block, 16);
 	else
 		memorycopy(W, block, 64);
 	for (i = 16; i < 64; i += 2) {
 		W[i] = s1(W[i - 2]) + W[i - 7] + s0(W[i - 15]) + W[i - 16];
-		W[i+1] = s1(W[i - 1]) + W[i - 6] + s0(W[i - 14]) + W[i - 15];
+		W[i + 1] = s1(W[i - 1]) + W[i - 6] + s0(W[i - 14]) + W[i - 15];
 	}
 
 	/* 2. Initialize working variables. */
@@ -175,8 +173,7 @@ SHA256_Transform(uint * state, const uint* block, int swap)
 		state[i] += S[i];
 }
 
-static inline void
-SHA256_InitState(uint * state)
+static inline void SHA256_InitState(uint * state)
 {
 	/* Magic initialization constants */
 	state[0] = 0x6A09E667;
@@ -189,17 +186,18 @@ SHA256_InitState(uint * state)
 	state[7] = 0x5BE0CD19;
 }
 
-static const uint passwdpad[12] = {0x00000080, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80020000};
-static const uint outerpad[8] = {0x80000000, 0, 0, 0, 0, 0, 0, 0x00000300};
+static const uint passwdpad[12] =
+    { 0x00000080, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80020000 };
+static const uint outerpad[8] = { 0x80000000, 0, 0, 0, 0, 0, 0, 0x00000300 };
 
 static inline void
-PBKDF2_SHA256_80_128_init(const uint *passwd, uint* tstate, uint* ostate)
+PBKDF2_SHA256_80_128_init(const uint * passwd, uint * tstate, uint * ostate)
 {
 	uint ihash[8];
 	uint pad[16];
 	uint i;
-	memorycopy(pad, passwd+16, 16);
-	memorycopy(pad+4, passwdpad, 48);
+	memorycopy(pad, passwd + 16, 16);
+	memorycopy(pad + 4, passwdpad, 48);
 
 	SHA256_InitState(tstate);
 	SHA256_Transform(tstate, passwd, 1);
@@ -227,27 +225,29 @@ PBKDF2_SHA256_80_128_init(const uint *passwd, uint* tstate, uint* ostate)
  * write the output to buf.
  */
 static inline void
-PBKDF2_SHA256_80_128(const uint *tstate, const uint *ostate, const uint *passwd, uint *buf)
+PBKDF2_SHA256_80_128(const uint * tstate, const uint * ostate,
+		     const uint * passwd, uint * buf)
 {
-	static const uint innerpad[11] = {0x00000080, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xa0040000};
+	static const uint innerpad[11] =
+	    { 0x00000080, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xa0040000 };
 	SHA256_CTX PShictx, PShoctx;
 	uint i;
-	
+
 	/* If Klen > 64, the key is really SHA256(K). */
 	memorycopy(PShictx.state, tstate, 32);
 	memorycopy(PShoctx.state, ostate, 32);
-	
-	memorycopy(PShoctx.buf+8, outerpad, 32);
+
+	memorycopy(PShoctx.buf + 8, outerpad, 32);
 
 	SHA256_Transform(PShictx.state, passwd, 1);
-	byteswap_vec(PShictx.buf, passwd+16, 4);
-	byteswap_vec(PShictx.buf+5, innerpad, 11);
+	byteswap_vec(PShictx.buf, passwd + 16, 4);
+	byteswap_vec(PShictx.buf + 5, innerpad, 11);
 
 	/* Iterate through the blocks. */
 	for (i = 0; i < 4; i++) {
 		uint ist[8];
 		uint ost[8];
-		
+
 		memorycopy(ist, PShictx.state, 32);
 		PShictx.buf[4] = i + 1;
 		SHA256_Transform(ist, PShictx.buf, 0);
@@ -255,71 +255,94 @@ PBKDF2_SHA256_80_128(const uint *tstate, const uint *ostate, const uint *passwd,
 
 		memorycopy(ost, PShoctx.state, 32);
 		SHA256_Transform(ost, PShoctx.buf, 0);
-		byteswap_vec(buf+i*8, ost, 8);
+		byteswap_vec(buf + i * 8, ost, 8);
 	}
 }
 
 static inline void
-PBKDF2_SHA256_80_128_32(uint *tstate, uint *ostate, const uint *salt, uint *output)
+PBKDF2_SHA256_80_128_32(uint * tstate, uint * ostate, const uint * salt,
+			uint * output)
 {
-	static const uint ihash_finalblk[16] = {0x00000001,0x80000000,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0x00000620};
+	static const uint ihash_finalblk[16] =
+	    { 0x00000001, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0x00000620 };
 	uint pad[16];
-	
+
 	SHA256_Transform(tstate, salt, 1);
-	SHA256_Transform(tstate, salt+16, 1);
+	SHA256_Transform(tstate, salt + 16, 1);
 	SHA256_Transform(tstate, ihash_finalblk, 0);
 	memorycopy(pad, tstate, 32);
-	memorycopy(pad+8, outerpad, 32);
+	memorycopy(pad + 8, outerpad, 32);
 
 	SHA256_Transform(ostate, pad, 0);
 	byteswap_vec(output, ostate, 8);
 }
 
-
 /**
  * salsa20_8(B):
  * Apply the salsa20/8 core to the provided block.
  */
-static inline void
-salsa20_8(uint B[16], const uint Bx[16])
+static inline void salsa20_8(uint B[16], const uint Bx[16])
 {
 	uint w[16];
 
-	for(int i=0; i<16; ++i)
-		w[i] = (B[i]^=Bx[i]);
+	for (int i = 0; i < 16; ++i)
+		w[i] = (B[i] ^= Bx[i]);
 	for (int i = 0; i < 8; i += 2) {
 #define R(a,b) (((a) << (b)) | ((a) >> (32 - (b))))
 		/* Operate on columns. */
-		w[ 4] ^= R(w[ 0]+w[12], 7);	w[ 9] ^= R(w[ 5]+w[ 1], 7);	w[14] ^= R(w[10]+w[ 6], 7);	w[ 3] ^= R(w[15]+w[11], 7);
-		w[ 8] ^= R(w[ 4]+w[ 0], 9);	w[13] ^= R(w[ 9]+w[ 5], 9);	w[ 2] ^= R(w[14]+w[10], 9);	w[ 7] ^= R(w[ 3]+w[15], 9);
-		w[12] ^= R(w[ 8]+w[ 4],13);	w[ 1] ^= R(w[13]+w[ 9],13);	w[ 6] ^= R(w[ 2]+w[14],13);	w[11] ^= R(w[ 7]+w[ 3],13);
-		w[ 0] ^= R(w[12]+w[ 8],18);	w[ 5] ^= R(w[ 1]+w[13],18);	w[10] ^= R(w[ 6]+w[ 2],18);	w[15] ^= R(w[11]+w[ 7],18);
+		w[4] ^= R(w[0] + w[12], 7);
+		w[9] ^= R(w[5] + w[1], 7);
+		w[14] ^= R(w[10] + w[6], 7);
+		w[3] ^= R(w[15] + w[11], 7);
+		w[8] ^= R(w[4] + w[0], 9);
+		w[13] ^= R(w[9] + w[5], 9);
+		w[2] ^= R(w[14] + w[10], 9);
+		w[7] ^= R(w[3] + w[15], 9);
+		w[12] ^= R(w[8] + w[4], 13);
+		w[1] ^= R(w[13] + w[9], 13);
+		w[6] ^= R(w[2] + w[14], 13);
+		w[11] ^= R(w[7] + w[3], 13);
+		w[0] ^= R(w[12] + w[8], 18);
+		w[5] ^= R(w[1] + w[13], 18);
+		w[10] ^= R(w[6] + w[2], 18);
+		w[15] ^= R(w[11] + w[7], 18);
 
 		/* Operate on rows. */
-		w[ 1] ^= R(w[ 0]+w[ 3], 7); w[ 6] ^= R(w[ 5]+w[ 4], 7); w[11] ^= R(w[10]+w[ 9], 7); w[12] ^= R(w[15]+w[14], 7);
-		w[ 2] ^= R(w[ 1]+w[ 0], 9); w[ 7] ^= R(w[ 6]+w[ 5], 9); w[ 8] ^= R(w[11]+w[10], 9); w[13] ^= R(w[12]+w[15], 9);
-		w[ 3] ^= R(w[ 2]+w[ 1],13); w[ 4] ^= R(w[ 7]+w[ 6],13); w[ 9] ^= R(w[ 8]+w[11],13); w[14] ^= R(w[13]+w[12],13);
-		w[ 0] ^= R(w[ 3]+w[ 2],18); w[ 5] ^= R(w[ 4]+w[ 7],18); w[10] ^= R(w[ 9]+w[ 8],18); w[15] ^= R(w[14]+w[13],18);
+		w[1] ^= R(w[0] + w[3], 7);
+		w[6] ^= R(w[5] + w[4], 7);
+		w[11] ^= R(w[10] + w[9], 7);
+		w[12] ^= R(w[15] + w[14], 7);
+		w[2] ^= R(w[1] + w[0], 9);
+		w[7] ^= R(w[6] + w[5], 9);
+		w[8] ^= R(w[11] + w[10], 9);
+		w[13] ^= R(w[12] + w[15], 9);
+		w[3] ^= R(w[2] + w[1], 13);
+		w[4] ^= R(w[7] + w[6], 13);
+		w[9] ^= R(w[8] + w[11], 13);
+		w[14] ^= R(w[13] + w[12], 13);
+		w[0] ^= R(w[3] + w[2], 18);
+		w[5] ^= R(w[4] + w[7], 18);
+		w[10] ^= R(w[9] + w[8], 18);
+		w[15] ^= R(w[14] + w[13], 18);
 #undef R
 	}
-	for(int i=0; i<16; ++i)
-		B[i]+=w[i];
+	for (int i = 0; i < 16; ++i)
+		B[i] += w[i];
 }
 
-static inline void scrypt_core(uint *X, uint *V)
+static inline void scrypt_core(uint * X, uint * V)
 {
-	for (int i = 0; i < 1024; ++i)
-	{
+	for (int i = 0; i < 1024; ++i) {
 		memorycopy(&V[i * 32], X, 128);
 		salsa20_8(&X[0], &X[16]);
 		salsa20_8(&X[16], &X[0]);
 	}
-	for (int i = 0; i < 1024; ++i) 
-	{
+	for (int i = 0; i < 1024; ++i) {
 		uint j = X[16] & 0x3FF;
 
-		uint* p2 = (uint *)(&V[j * 32]);
-		for(int k = 0; k < 32; k++)
+		uint *p2 = (uint *) (&V[j * 32]);
+		for (int k = 0; k < 32; k++)
 			X[k] ^= p2[k];
 
 		salsa20_8(&X[0], &X[16]);
@@ -331,21 +354,21 @@ static inline void scrypt_core(uint *X, uint *V)
    scratchpad size needs to be at least 63 + (128 * r * p) + (256 * r + 64) + (128 * r * N) bytes
    r = 1, p = 1, N = 1024
  */
-static void scrypt_1024_1_1_256_sp(uint* input, uint *output, unsigned char *scratchpad)
+static void scrypt_1024_1_1_256_sp(uint * input, uint * output,
+				   unsigned char *scratchpad)
 {
 	uint tstate[8], ostate[8], X[32];
 	PBKDF2_SHA256_80_128_init(input, tstate, ostate);
 	PBKDF2_SHA256_80_128(tstate, ostate, input, X);
-	scrypt_core(X, (uint*)scratchpad);
+	scrypt_core(X, (uint *) scratchpad);
 	PBKDF2_SHA256_80_128_32(tstate, ostate, X, output);
 }
 
-int test_lower_hash(const uint *hash,
-	const uint *target)
+int test_lower_hash(const uint * hash, const uint * target)
 {
 	int i;
 	for (i = 6; i >= 0; i--) {
-		uint t = *(uint*)(&target[i]);
+		uint t = *(uint *) (&target[i]);
 		if (hash[i] > t)
 			return 0;
 		if (hash[i] < t)
@@ -354,24 +377,22 @@ int test_lower_hash(const uint *hash,
 	return 1;
 }
 
-SHARETEST_VALUE scanhash_scrypt(unsigned char *pdata, unsigned char* scratchbuf,
-	const unsigned char *ptarget)
+SHARETEST_VALUE scanhash_scrypt(unsigned char *pdata, unsigned char *scratchbuf,
+				const unsigned char *ptarget)
 {
 	uint data[20], hash[8];
-	uint Htarg = *(uint*)(ptarget+28);
-
-	
+	uint Htarg = *(uint *) (ptarget + 28);
 
 	for (int i = 0; i < 20; i++)
-		data[i] = EndianSwap(((uint*)pdata)[i]);
+		data[i] = EndianSwap(((uint *) pdata)[i]);
 	scrypt_1024_1_1_256_sp(data, hash, scratchbuf);
 
 	SHARETEST_VALUE ret;
-	if (hash[7] > 0xFFFF)
-	{
+	if (hash[7] > 0xFFFF) {
 		return ST_HNOTZERO;
 	}
-	if (hash[7] < Htarg || (hash[7] == Htarg && test_lower_hash(hash, (uint *)ptarget)))
+	if (hash[7] < Htarg
+	    || (hash[7] == Htarg && test_lower_hash(hash, (uint *) ptarget)))
 		return ST_GOOD;
 	return ST_MORETHANTARGET;
 }

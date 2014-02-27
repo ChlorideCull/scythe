@@ -14,87 +14,84 @@ void Curl::GlobalQuit()
 	curl_global_cleanup();
 }
 
-void* Curl::Init()
+void *Curl::Init()
 {
-	void* curl = curl_easy_init();
-	if (curl == NULL)
-	{
+	void *curl = curl_easy_init();
+	if (curl == NULL) {
 		throw string("libcurl initialization failure");
 	}
 	return curl;
 }
 
-void Curl::Quit(void* curl)
+void Curl::Quit(void *curl)
 {
-	if (curl != NULL)
-	{
+	if (curl != NULL) {
 		curl_easy_cleanup(curl);
 	}
 }
 
 size_t ResponseCallback(void *ptr, size_t size, size_t nmemb, void *data)
 {
-	string* getworksentdata = (string*)data;
-	try 	
-	{ 	
-		for(uint i=0; i<size*nmemb; ++i) 	
-		{ 		
-			if(ptr!=NULL && data!=NULL) 		
-			{ 			
-				char c = ((char*)ptr)[i]; 			
-				getworksentdata->push_back(c); 		
-			} 	
+	string *getworksentdata = (string *) data;
+	try {
+		for (uint i = 0; i < size * nmemb; ++i) {
+			if (ptr != NULL && data != NULL) {
+				char c = ((char *)ptr)[i];
+				getworksentdata->push_back(c);
+			}
 		}
-	} 	
-	catch(std::exception s) 	
-	{ 		
-		cout << "(1) Error: " << s.what() << endl; 	
 	}
-	return size*nmemb; 
+	catch(std::exception s) {
+		cout << "(1) Error: " << s.what() << endl;
+	}
+	return size * nmemb;
 }
 
 string longpoll_url;
-bool longpoll_active=false;
-size_t HeaderCallback( void *ptr, size_t size, size_t nmemb, void *userdata)
+bool longpoll_active = false;
+size_t HeaderCallback(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
 	string hdr;
-	for(uint i=0; i<size*nmemb; ++i)
-	{
-		char c = ((char*)ptr)[i];
+	for (uint i = 0; i < size * nmemb; ++i) {
+		char c = ((char *)ptr)[i];
 		hdr.push_back(c);
 	}
-	if (!longpoll_active && hdr.length() >= 0x10 && hdr.substr(0,0xF) == "X-Long-Polling:")
-	{
+	if (!longpoll_active && hdr.length() >= 0x10
+	    && hdr.substr(0, 0xF) == "X-Long-Polling:") {
 		longpoll_url = hdr.substr(0x10);
-		longpoll_url = longpoll_url.substr(0, longpoll_url.length()-2);
+		longpoll_url =
+		    longpoll_url.substr(0, longpoll_url.length() - 2);
 		cout << "Longpoll url -->" << longpoll_url << "<-- " << endl;
 		longpoll_active = true;
 	}
-	return size*nmemb;
+	return size * nmemb;
 }
 
-string Curl::GetWork_LP(ServerSettings& s, string path, uint timeout)
+string Curl::GetWork_LP(ServerSettings & s, string path, uint timeout)
 {
-	return Execute(s,GETWORK_LP, "", path, timeout);
+	return Execute(s, GETWORK_LP, "", path, timeout);
 }
 
-string Curl::GetWork(ServerSettings& s, string path, uint timeout)
+string Curl::GetWork(ServerSettings & s, string path, uint timeout)
 {
-	return Execute(s,GETWORK, "", path, timeout);
+	return Execute(s, GETWORK, "", path, timeout);
 }
 
-string Curl::TestWork(ServerSettings& s, string work)
+string Curl::TestWork(ServerSettings & s, string work)
 {
-	return Execute(s,TESTWORK, work, "", 30);
+	return Execute(s, TESTWORK, work, "", 30);
 }
 
-string Curl::Execute(ServerSettings& s, Curl::EXEC_TYPE type, string work, string path, uint timeout)
+string Curl::Execute(ServerSettings & s, Curl::EXEC_TYPE type, string work,
+		     string path, uint timeout)
 {
-	void* curl = Init();
+	void *curl = Init();
 	string responsedata;
 	curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
-	curl_easy_setopt(curl, CURLOPT_URL, ("http://" + s.host + path).c_str());
-	curl_easy_setopt(curl, CURLOPT_USERPWD, (s.user + ":" + s.pass).c_str());
+	curl_easy_setopt(curl, CURLOPT_URL,
+			 ("http://" + s.host + path).c_str());
+	curl_easy_setopt(curl, CURLOPT_USERPWD,
+			 (s.user + ":" + s.pass).c_str());
 	curl_easy_setopt(curl, CURLOPT_PORT, s.port);
 
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, ResponseCallback);
@@ -105,105 +102,107 @@ string Curl::Execute(ServerSettings& s, Curl::EXEC_TYPE type, string work, strin
 
 	curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
 
-	if (globalconfs.coin.protocol == "bitcoin" || globalconfs.coin.protocol == "litecoin")
-		Execute_BTC(curl,type,work,path,timeout);
-	else if (globalconfs.coin.protocol == "solidcoin" || globalconfs.coin.protocol == "solidcoin3")
-		Execute_SLC(curl,type,work,path,timeout);
+	if (globalconfs.coin.protocol == "bitcoin"
+	    || globalconfs.coin.protocol == "litecoin")
+		Execute_BTC(curl, type, work, path, timeout);
+	else if (globalconfs.coin.protocol == "solidcoin"
+		 || globalconfs.coin.protocol == "solidcoin3")
+		Execute_SLC(curl, type, work, path, timeout);
 	else
-		cout << "Wrong protocol type " << globalconfs.coin.protocol << "." << endl;
+		cout << "Wrong protocol type " << globalconfs.coin.
+		    protocol << "." << endl;
 	Quit(curl);
 	return responsedata;
 }
 
-void Curl::Execute_BTC(void* curl, Curl::EXEC_TYPE type, string work, string path, uint timeout)
+void Curl::Execute_BTC(void *curl, Curl::EXEC_TYPE type, string work,
+		       string path, uint timeout)
 {
-	curl_slist* headerlist = NULL;
+	curl_slist *headerlist = NULL;
 	headerlist = curl_slist_append(headerlist, "Accept: */*");
-	headerlist = curl_slist_append(headerlist, "Content-Type: application/json");
-	headerlist = curl_slist_append(headerlist, "User-Agent: reaper/" REAPER_VERSION);
+	headerlist =
+	    curl_slist_append(headerlist, "Content-Type: application/json");
+	headerlist =
+	    curl_slist_append(headerlist, "User-Agent: reaper/" REAPER_VERSION);
 	headerlist = curl_slist_append(headerlist, "User-Agent: jansson 1.3");
-	headerlist = curl_slist_append(headerlist, "X-Mining-Extensions: midstate rollntime");
+	headerlist =
+	    curl_slist_append(headerlist,
+			      "X-Mining-Extensions: midstate rollntime");
 
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headerlist);
 
 	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, timeout);
-	
-	if (type == GETWORK_LP)
-	{
+
+	if (type == GETWORK_LP) {
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
 		curl_easy_setopt(curl, CURLOPT_POST, 0);
-	}
-	else if (type == GETWORK)
-	{
+	} else if (type == GETWORK) {
 		curl_easy_setopt(curl, CURLOPT_POST, 1);
-		curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS, "{\"method\":\"getwork\",\"params\":[],\"id\":\"1\"}");
-	}
-	else if (type == TESTWORK)
-	{
+		curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS,
+				 "{\"method\":\"getwork\",\"params\":[],\"id\":\"1\"}");
+	} else if (type == TESTWORK) {
 		curl_easy_setopt(curl, CURLOPT_POST, 1);
-		string str = "{\"method\":\"getwork\",\"id\":\"1\",\"params\":[\"" + work + "\"]}";
+		string str =
+		    "{\"method\":\"getwork\",\"id\":\"1\",\"params\":[\"" +
+		    work + "\"]}";
 		curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS, str.c_str());
-	}
-	else
-	{
-		cout << "Unknown case " << (int)type << " in Curl::Execute()" << endl;
+	} else {
+		cout << "Unknown case " << (int)type << " in Curl::Execute()" <<
+		    endl;
 	}
 	CURLcode code = curl_easy_perform(curl);
-	if(code != CURLE_OK && type != TESTWORK)
-	{
-		if (code == CURLE_COULDNT_CONNECT)
-		{
+	if (code != CURLE_OK && type != TESTWORK) {
+		if (code == CURLE_COULDNT_CONNECT) {
 			cout << "Could not connect. Server down?" << endl;
-		}
-		else
-		{
-			cout << "Error " << code << " getting work. See http://curl.haxx.se/libcurl/c/libcurl-errors.html for error code explanations." << endl;
+		} else {
+			cout << "Error " << code <<
+			    " getting work. See http://curl.haxx.se/libcurl/c/libcurl-errors.html for error code explanations."
+			    << endl;
 		}
 	}
 	curl_slist_free_all(headerlist);
 }
 
-void Curl::Execute_SLC(void* curl, Curl::EXEC_TYPE type, string work, string path, uint timeout)
+void Curl::Execute_SLC(void *curl, Curl::EXEC_TYPE type, string work,
+		       string path, uint timeout)
 {
-	curl_slist* headerlist = NULL;
-	headerlist = curl_slist_append(headerlist, "Content-Type: application/json");
+	curl_slist *headerlist = NULL;
+	headerlist =
+	    curl_slist_append(headerlist, "Content-Type: application/json");
 	headerlist = curl_slist_append(headerlist, "Accept: application/json");
-	headerlist = curl_slist_append(headerlist, "User-Agent: reaper/" REAPER_VERSION);
+	headerlist =
+	    curl_slist_append(headerlist, "User-Agent: reaper/" REAPER_VERSION);
 
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headerlist);
 
 	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, timeout);
-	
-	if (type == GETWORK_LP) 
-	{
+
+	if (type == GETWORK_LP) {
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
 		curl_easy_setopt(curl, CURLOPT_POST, 0);
-	}
-	else if (type == GETWORK)
-	{
+	} else if (type == GETWORK) {
 		curl_easy_setopt(curl, CURLOPT_POST, 1);
-		curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS, "{\"method\":\"sc_getwork\",\"params\":[],\"id\":1}");
-	}
-	else if (type == TESTWORK)
-	{
+		curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS,
+				 "{\"method\":\"sc_getwork\",\"params\":[],\"id\":1}");
+	} else if (type == TESTWORK) {
 		curl_easy_setopt(curl, CURLOPT_POST, 1);
-		curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS, ("{\"method\":\"sc_testwork\",\"id\":\"1\",\"params\":[\"" + work + "\"]}").c_str());
-	}
-	else
-	{
-		cout << "Unknown case " << (int)type << " in Curl::Execute()" << endl;
+		curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS,
+				 ("{\"method\":\"sc_testwork\",\"id\":\"1\",\"params\":[\""
+				  + work + "\"]}").c_str());
+	} else {
+		cout << "Unknown case " << (int)type << " in Curl::Execute()" <<
+		    endl;
 	}
 
 	CURLcode code = curl_easy_perform(curl);
-	if(code != CURLE_OK)
-	{
-		if (code == CURLE_COULDNT_CONNECT)
-		{
-			cout << humantime() << "Could not connect. Server down?" << endl;
-		}
-		else
-		{
-			cout << humantime() << "Error " << code << " getting work. See http://curl.haxx.se/libcurl/c/libcurl-errors.html for error code explanations." << endl;
+	if (code != CURLE_OK) {
+		if (code == CURLE_COULDNT_CONNECT) {
+			cout << humantime() << "Could not connect. Server down?"
+			    << endl;
+		} else {
+			cout << humantime() << "Error " << code <<
+			    " getting work. See http://curl.haxx.se/libcurl/c/libcurl-errors.html for error code explanations."
+			    << endl;
 		}
 	}
 	curl_slist_free_all(headerlist);

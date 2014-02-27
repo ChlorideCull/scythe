@@ -17,17 +17,17 @@ void Config::Clear()
 	config.clear();
 }
 
-void Config::Load(string filename, vector<string> included_already)
+void Config::Load(string filename, vector < string > included_already)
 {
 	included_already.push_back(filename);
 	{
-		FILE* filu = fopen(filename.c_str(), "r");
+		FILE *filu = fopen(filename.c_str(), "r");
 		if (filu == NULL)
 			throw string("Config file " + filename + " not found.");
 		fclose(filu);
 	}
 
-	map<string, string> config_values;
+	map < string, string > config_values;
 	config_values["aggression"] = "uint";
 	config_values["worksize"] = "uint";
 	config_values["threads_per_gpu"] = "uint";
@@ -55,48 +55,51 @@ void Config::Load(string filename, vector<string> included_already)
 	config_values["gpu_thread_concurrency"] = "uint";
 
 	ifstream filu(filename.c_str());
-	while(!filu.eof())
-	{
+	while (!filu.eof()) {
 		string prop;
 		filu >> prop;
 
 		string value;
 		filu >> value;
 
-		if (prop == "include")
-		{
-			if (std::find(included_already.begin(), included_already.end(), value) != included_already.end())
-			{
+		if (prop == "include") {
+			if (std::
+			    find(included_already.begin(),
+				 included_already.end(),
+				 value) != included_already.end()) {
 				cout << "Circular include: ";
-				for(uint i=0; i<included_already.size(); ++i)
+				for (uint i = 0; i < included_already.size();
+				     ++i)
 					cout << included_already[i] << " -> ";
 				cout << value << endl;
-			}
-			else
-			{
+			} else {
 				Config includedconfig;
 				includedconfig.Load(value, included_already);
-				for(map<string,vector<string> >::iterator it = includedconfig.config.begin(); it != includedconfig.config.end(); ++it)
-					for(uint i=0; i<it->second.size(); ++i)
+				for (map < string,
+				     vector < string > >::iterator it =
+				     includedconfig.config.begin();
+				     it != includedconfig.config.end(); ++it)
+					for (uint i = 0; i < it->second.size();
+					     ++i)
 						config[it->first] = it->second;
 			}
 		}
 
-		if (config_values.find(prop) == config_values.end())
-		{
+		if (config_values.find(prop) == config_values.end()) {
 			bool fail = true;
 			CombiKey c = GetCombiKey(prop);
-			if (c.base != "" && c.id != -1 && c.prop != "")
-			{
+			if (c.base != "" && c.id != -1 && c.prop != "") {
 				fail = false;
 			}
-			if (fail)
-			{
-				if (prop != "")
-				{
-					cout << "Warning: unknown property \"" << prop << "\" in configuration file." << endl;
+			if (fail) {
+				if (prop != "") {
+					cout << "Warning: unknown property \""
+					    << prop <<
+					    "\" in configuration file." << endl;
 					if (prop == "threads_per_device")
-						cout << "The property \"threads_per_device\" should be called \"threads_per_gpu\". Please change it in the config." << endl;
+						cout <<
+						    "The property \"threads_per_device\" should be called \"threads_per_gpu\". Please change it in the config."
+						    << endl;
 				}
 				continue;
 			}

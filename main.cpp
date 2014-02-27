@@ -6,32 +6,26 @@
 #include "AppOpenCL.h"
 #include "Util.h"
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-	try
-	{
-		vector<string> args;
-		for(int i=0; i<argc; ++i)
-		{
+	try {
+		vector < string > args;
+		for (int i = 0; i < argc; ++i) {
 			args.push_back(argv[i]);
 		}
 		App app;
 		app.Main(args);
 	}
-	catch(string s)
-	{
+	catch(string s) {
 		cout << humantime() << "Error: " << s << endl;
 	}
-	catch(std::runtime_error s)
-	{
+	catch(std::runtime_error s) {
 		cout << humantime() << "Runtime error: " << s.what() << endl;
 	}
-	catch(std::exception s)
-	{
+	catch(std::exception s) {
 		cout << humantime() << "Exception: " << s.what() << endl;
 	}
-	catch(...)
-	{
+	catch( ...) {
 		cout << humantime() << "Unknown error." << endl;
 	}
 }
