@@ -8,20 +8,28 @@ open source and licensed under the GPL 3.0.
 
 Reaper works well on both ATI and Nvidia GPUs. Although ATI GPUs appear to be
 more efficient, many types of GPU remain untested. Users are encouraged to
-experiment with the software and try to attain the best hash rate they can and
-post their results on the official SolidCoin forum so they can be included in
-the Mining Hardware Performance page.
+experiment with the software and try to attain the best hash rate they can.
+
+Except for SolidCoin, there is support for Litecoin and good ol' Bitcoin in
+here too.
 
 As well as supporting GPU mining, Reaper can be configured to mine with the CPU
-too. Enabling CPU mining does not normally have an impact on GPU mining hash
-rates.
+too (SolidCoin only, at the moment). Enabling CPU mining does not normally have
+an impact on GPU mining hash rates.
+
+###Fork notes
+Upcoming features include:
+
+* Stratum support
+* Litecoin CPU mining
+* Optimal default parameters through trial and error
 
 How to use
 ----------
 
 Use from the command line, syntax:
 
-    reaper <host> <port> <user> <pass> [config_filename]
+    reaper [config_filename]
 
 Configuration file
 ------------------
@@ -116,8 +124,8 @@ Recommended value: yes
 	user [text]
 	pass [text]
 	
-You can now configure the server's info in the config file instead of having
-to use command line arguments.
+You should now configure the server info in the config file instead of
+using command line arguments.
 
 	proxy [address]
 
@@ -127,10 +135,6 @@ socks4://user:pass@proxyaddr:port
 	include [filename]
 
 Loads a config file and its settings.
-
-#can put the host/port/user/pass info to the config instead
-#proxy settings
-#include directive in config
 
 
 Compiling
