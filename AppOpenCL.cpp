@@ -2,6 +2,7 @@
 #include "AppOpenCL.h"
 #include "Util.h"
 
+#include <algorithm>
 
 uint OpenCL::GetVectorSize()
 {
@@ -219,20 +220,6 @@ void OpenCL::Init()
 	for(uint i=0; i<numDevices; ++i)
 		devices.push_back(devicearray[i]);
 
-	cout << "List of devices" << endl;
-
-	for(uint i=0; i<numDevices; i++) 
-	{
-		char pbuff[100];
-		status = clGetDeviceInfo(devices[i], CL_DEVICE_NAME, sizeof(pbuff), pbuff, NULL);
-		if(status != CL_SUCCESS)
-			throw string("Error getting OpenCL device info");
-
-		cout << "\t" << i << "\t" << pbuff << endl;
-	}
-
-	cout << "Compiling OpenCL kernel.. this might take 20 seconds" << endl;
-
 	cl_context_properties cps[3] = { CL_CONTEXT_PLATFORM, (cl_context_properties)platform, 0 };
 
 	clState.context = clCreateContextFromType(cps, CL_DEVICE_TYPE_GPU, NULL, NULL, &status);
@@ -241,8 +228,12 @@ void OpenCL::Init()
 
 	string source;
 	{
-		string filename  = "reaper.cl";
+		string filename = globalconfs.kernel;
 		FILE* filu = fopen(filename.c_str(), "r");
+		if (filu == NULL)
+		{
+			throw string("Couldn't find kernel file ") + globalconfs.kernel;
+		}
 		fseek(filu, 0, SEEK_END);
 		uint size = ftell(filu);
 		fseek(filu, 0, SEEK_SET);
@@ -258,36 +249,93 @@ void OpenCL::Init()
 	sourcesizes.push_back(source.length());
 
 	const char* see = source.c_str();
+	cout << endl;
 
+	if (globalconfs.devices.empty())
+	{
+		cout << "Using all devices" << endl;
+	}
+	else
+	{
+		cout << "Using device" << (globalconfs.devices.size()==1?"":"s") << " ";
+		for(uint i=0; i<globalconfs.devices.size(); ++i)
+		{
+			cout << globalconfs.devices[i];
+			if (i+1 < globalconfs.devices.size())
+			{
+				cout << ", ";
+			}
+		}
+		cout << endl;
+	}
+	
 	for(uint device_id=0; device_id<numDevices; ++device_id) 
 	{
-		bool use_vectors = true;
+		char pbuff[100];
+		status = clGetDeviceInfo(devices[device_id], CL_DEVICE_NAME, sizeof(pbuff), pbuff, NULL);
+		cout << "\t" << device_id << "\t" << pbuff;
+		if(status != CL_SUCCESS)
+			throw string("Error getting OpenCL device info");
+
+		if (!globalconfs.devices.empty() && std::find(globalconfs.devices.begin(), globalconfs.devices.end(), device_id) == globalconfs.devices.end())
+		{
+			cout << " (disabled)" << endl;
+			continue;
+		}
+
+		cout << endl;
+
+		uchar* filebinary = NULL;
+		size_t filebinarysize=0;
+		string filebinaryname;
+		for(char*p = &pbuff[0]; *p != 0; ++p)
+		{
+			if (*p >= 33 && *p < 127)
+				filebinaryname += *p;
+		}
+		filebinaryname = globalconfs.kernel.substr(0,globalconfs.kernel.size()-3) + "." + filebinaryname + ".bin";
+		if (globalconfs.save_binaries)
+		{
+			FILE* filu = fopen(filebinaryname.c_str(), "rb");
+			if (filu != NULL)
+			{
+				fseek(filu, 0, SEEK_END);
+				uint size = ftell(filu);
+				fseek(filu, 0, SEEK_SET);
+				if (size > 0)
+				{
+					filebinary = new uchar[size];
+					filebinarysize = size;
+					fread(filebinary, size, 1, filu);
+				}
+				fclose(filu);
+			}
+		}
 
 		_clState GPUstate;
 
-		GPUstate.program = clCreateProgramWithSource(clState.context, 1, (const char **)&see, &sourcesizes[0], &status);
-		if(status != CL_SUCCESS) 
-			throw string("Error creating OpenCL program from source");
-
-		string compile_options;
-
-		if (use_vectors)
-			compile_options += " -D VECTORS";
-
-		status = clBuildProgram(GPUstate.program, 1, &devices[device_id], compile_options.c_str(), NULL, NULL);
-		if(status != CL_SUCCESS) 
-		{   
-			size_t logSize;
-			status = clGetProgramBuildInfo(GPUstate.program, devices[device_id], CL_PROGRAM_BUILD_LOG, 0, NULL, &logSize);
-
-			char* log = new char[logSize];
-			status = clGetProgramBuildInfo(GPUstate.program, devices[device_id], CL_PROGRAM_BUILD_LOG, logSize, log, NULL);
-			cout << log << endl;
-			delete [] log;
-			throw string("Error building OpenCL program");
-		}
-		
+		if (filebinary == NULL)
 		{
+			cout << "Compiling kernel.." << endl;
+			GPUstate.program = clCreateProgramWithSource(clState.context, 1, (const char **)&see, &sourcesizes[0], &status);
+			if(status != CL_SUCCESS) 
+				throw string("Error creating OpenCL program from source");
+
+			string compile_options;
+
+			status = clBuildProgram(GPUstate.program, 1, &devices[device_id], compile_options.c_str(), NULL, NULL);
+			if(status != CL_SUCCESS) 
+			{   
+				size_t logSize;
+				status = clGetProgramBuildInfo(GPUstate.program, devices[device_id], CL_PROGRAM_BUILD_LOG, 0, NULL, &logSize);
+
+				char* log = new char[logSize];
+				status = clGetProgramBuildInfo(GPUstate.program, devices[device_id], CL_PROGRAM_BUILD_LOG, logSize, log, NULL);
+				cout << log << endl;
+				delete [] log;
+				throw string("Error building OpenCL program");
+			}
+		
 			uint device_amount;
 			clGetProgramInfo(GPUstate.program, CL_PROGRAM_NUM_DEVICES, sizeof(uint), &device_amount, NULL);
 
@@ -295,7 +343,7 @@ void OpenCL::Init()
 			uchar** binaries = new uchar*[device_amount];
 			for(uint curr_binary = 0; curr_binary<device_amount; ++curr_binary)
 			{
-				clGetProgramInfo(GPUstate.program, CL_PROGRAM_BINARY_SIZES, device_amount*sizeof(uint), binarysizes, NULL);
+				clGetProgramInfo(GPUstate.program, CL_PROGRAM_BINARY_SIZES, device_amount*sizeof(size_t), binarysizes, NULL);
 				binaries[curr_binary] = new uchar[binarysizes[curr_binary]];
 			}
 			clGetProgramInfo(GPUstate.program, CL_PROGRAM_BINARIES, sizeof(uchar*)*device_amount, binaries, NULL);
@@ -307,21 +355,35 @@ void OpenCL::Init()
 
 				cout << "Binary size: " << binarysizes[binary_id] << " bytes" << endl;
 			}
-			clReleaseProgram(GPUstate.program);
 
-			cl_int binary_status, errorcode_ret;
-			GPUstate.program = clCreateProgramWithBinary(clState.context, 1, &devices[device_id], &binarysizes[device_id], const_cast<const uchar**>(&binaries[device_id]), &binary_status, &errorcode_ret);
-			status = clBuildProgram(GPUstate.program, 1, &devices[device_id], compile_options.c_str(), NULL, NULL);
+			if (globalconfs.save_binaries)
+			{
+				FILE* filu = fopen(filebinaryname.c_str(), "wb");
+				fwrite(binaries[device_id], binarysizes[device_id], 1, filu);
+				fclose(filu);
+			}
 
-			if(status == CL_SUCCESS) 
-				cout << "Program rebuilt." << endl;
-			else
-				cout << "Failed to BFI_INT patch kernel on device " << device_id <<  ". What now?" << endl;
+			cout << "Program built from source." << endl;
 			delete [] binarysizes;
 			for(uint binary_id=0; binary_id < device_amount; ++binary_id)
 				delete [] binaries[binary_id];
 			delete [] binaries;
 		}
+		else
+		{
+			cl_int binary_status, errorcode_ret;
+			GPUstate.program = clCreateProgramWithBinary(clState.context, 1, &devices[device_id], &filebinarysize, const_cast<const uchar**>(&filebinary), &binary_status, &errorcode_ret);
+			if (binary_status != CL_SUCCESS)
+				cout << "Binary status error code: " << binary_status << endl;
+			if (errorcode_ret != CL_SUCCESS)
+				cout << "Binary loading error code: " << errorcode_ret << endl;
+			status = clBuildProgram(GPUstate.program, 1, &devices[device_id], NULL, NULL, NULL);
+			if (status != CL_SUCCESS)
+				cout << "Error while building from binary: " << status << endl;
+
+			cout << "Program built from saved binary." << endl;
+		}
+		delete [] filebinary;
 
 		GPUstate.kernel = clCreateKernel(GPUstate.program, "search", &status);
 		if(status != CL_SUCCESS)
@@ -356,6 +418,12 @@ void OpenCL::Init()
 			GPUstates.push_back(GPUstate);
 		}
 	}
+
+	if (GPUstates.size() == 0)
+	{
+		throw string("No devices selected. Quitting.");
+	}
+
 	cout << "Creating " << GPUstates.size() << " threads" << endl;
 	for(uint i=0; i<GPUstates.size(); ++i)
 	{

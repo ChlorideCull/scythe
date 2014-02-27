@@ -15,12 +15,6 @@ private:
 	map<string, vector<string> > config;
 	string configfilename;
 public:
-
-
-	void WriteLineSpecialConfig();
-	void WriteSectorSpecialConfig();
-	void WriteThingTypeConfig();
-
 	void Save();
 	void Load(string filename);
 

@@ -23,10 +23,9 @@ struct GlobalConfs
 	uint global_worksize;
 	uint local_worksize;
 	uint threads_per_device;
-	bool bitalign;
-	bool bfi_int;
-	bool bfi_int_fix;
-	bool log_midhash;
+	vector<uint> devices;
+	string kernel;
+	bool save_binaries;
 };
 
 extern GlobalConfs globalconfs;

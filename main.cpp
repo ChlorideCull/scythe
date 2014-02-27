@@ -15,14 +15,14 @@ int main(int argc, char* argv[])
 	}
 	catch(string s)
 	{
-		cout << "Fatal error: " << s << endl;
+		cout << "Error: " << s << endl;
 	}
 	catch(std::exception s)
 	{
-		cout << "Fatal Error: " << s.what() << endl;
+		cout << "Error: " << s.what() << endl;
 	}
 	catch(...)
 	{
-		cout << "wtfpafeokopfrthkgrjopij" << endl;
+		cout << "Error." << endl;
 	}
 }

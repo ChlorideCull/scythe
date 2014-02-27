@@ -16,10 +16,10 @@ void Config::Load( string filename )
 	config_values["aggression"] = "uint";
 	config_values["worksize"] = "uint";
 	config_values["threads_per_device"] = "uint";
-	config_values["bfi_int"] = "bool";
-	config_values["bitalign"] = "bool";
-	config_values["bfi_int_fix"] = "bool";
-	config_values["log_midhash"] = "bool";
+	config_values["device"] = "array";
+	config_values["kernel"] = "string";
+	config_values["save_binaries"] = "bool";
+
 
 	ifstream filu(GetConfigFileName().c_str());
 	while(!filu.eof())

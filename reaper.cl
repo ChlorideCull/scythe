@@ -19,10 +19,10 @@ typedef ulong uint64;
 
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 
-typedef struct  { 
+/*typedef struct  { 
   uint64_t h[8];
   uint8_t buf[128];
-} state;
+} state;*/
 
 __constant uint8_t sigma[256] = 
 {
@@ -51,8 +51,6 @@ __constant uint64_t cst[16] =
   0x9216D5D98979FB1BUL,0xD1310BA698DFB5ACUL,0x2FFD72DBD01ADFB7UL,0xB8E1AFED6A267E96UL,
   0xBA7C9045F12C7F99UL,0x24A19947B3916CF7UL,0x0801F2E2858EFC16UL,0x636920D871574E69UL
 };
-
-#define ROT(x,n) (((x)<<(64-n))|( (x)>>(n)))
   
 __constant uint K[64] = 
 { 
@@ -266,6 +264,9 @@ void Sha256_round_padding(uint* s)
 }
 
 
+
+#define ROT(x,n) (((x)<<(64-n))|( (x)>>(n)))
+
 #define G(m,a,b,c,d,e,i)					\
   v[a] += (m[sigma[i+e]] ^ cst[sigma[i+e+1]]) + v[b];	\
   v[d] = ROT( v[d] ^ v[a],32);				\
@@ -292,20 +293,18 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 	in[94] = (nonce>>16)&0xFF;
 	in[95] = (nonce>>24)&0xFF;
 
+	uint64_t h[8];
+	h[0]=0x6A09E667F3BCC908UL;
+	h[1]=0xBB67AE8584CAA73BUL;
+	h[2]=0x3C6EF372FE94F82BUL;
+	h[3]=0xA54FF53A5F1D36F1UL;
+	h[4]=0x510E527FADE682D1UL;
+	h[5]=0x9B05688C2B3E6C1FUL;
+	h[6]=0x1F83D9ABFB41BD6BUL;
+	h[7]=0x5BE0CD19137E2179UL;
 
-	state S;
-	S.h[0]=0x6A09E667F3BCC908UL;
-	S.h[1]=0xBB67AE8584CAA73BUL;
-	S.h[2]=0x3C6EF372FE94F82BUL;
-	S.h[3]=0xA54FF53A5F1D36F1UL;
-	S.h[4]=0x510E527FADE682D1UL;
-	S.h[5]=0x9B05688C2B3E6C1FUL;
-	S.h[6]=0x1F83D9ABFB41BD6BUL;
-	S.h[7]=0x5BE0CD19137E2179UL;
-
-	uint64_t v[16], m[16];
-	for(uint i=0; i<16;++i)  m[i] = U8TO64(in + i*8);
-	for(uint i=0; i< 8;++i)  v[i] = S.h[i];
+	uint64_t v[16];
+	for(uint i=0; i< 8;++i)  v[i] = h[i];
 	v[ 8] = 0x243F6A8885A308D3UL;
 	v[ 9] = 0x13198A2E03707344UL;
 	v[10] = 0xA4093822299F31D0UL;
@@ -316,6 +315,8 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 	v[15] = 0x3F84D5B5B5470917UL;
 
 	{
+		uint64_t m[16];
+		for(uint i=0; i<16;++i)  m[i] = U8TO64(in + i*8);
 		uint i=0;
 		G( m, 0, 4, 8,12, 0, i); G( m, 1, 5, 9,13, 2, i); G( m, 2, 6,10,14, 4, i); G( m, 3, 7,11,15, 6, i);
 		G( m, 3, 4, 9,14,14, i); G( m, 2, 7, 8,13,12, i); G( m, 0, 5,10,15, 8, i); G( m, 1, 6,11,12,10, i);
@@ -366,10 +367,9 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 		G( m, 3, 4, 9,14,14, i); G( m, 2, 7, 8,13,12, i); G( m, 0, 5,10,15, 8, i); G( m, 1, 6,11,12,10, i);
 	} 
 
-	for(uint i=0; i<16;++i)  S.h[i%8] ^= v[i]; 
+	for(uint i=0; i<16;++i)  h[i&7] ^= v[i]; 
 
-	uint64_t m2[16] = {1UL << 63, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0x400};
-	for(uint i=0; i< 8;++i)  v[i] = S.h[i];
+	for(uint i=0; i< 8;++i)  v[i] = h[i];
 	v[8] = 0x243F6A8885A308D3UL;
 	v[9] = 0x13198A2E03707344UL;
 	v[10] = 0xA4093822299F31D0UL;
@@ -380,6 +380,7 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 	v[15] = 0x3F84D5B5B5470917UL;
 
 	{
+		uint64_t m2[16] = {1UL << 63, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0x400};
 		uint i=0;
 		G(m2, 0, 4, 8,12, 0, i); G(m2, 1, 5, 9,13, 2, i); G(m2, 2, 6,10,14, 4, i); G(m2, 3, 7,11,15, 6, i);
 		G(m2, 3, 4, 9,14,14, i); G(m2, 2, 7, 8,13,12, i); G(m2, 0, 5,10,15, 8, i); G(m2, 1, 6,11,12,10, i);
@@ -430,73 +431,102 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 		G(m2, 3, 4, 9,14,14, i); G(m2, 2, 7, 8,13,12, i); G(m2, 0, 5,10,15, 8, i); G(m2, 1, 6,11,12,10, i);
 	} 
 
-	for(uint i=0; i<16;++i)  S.h[i%8] ^= v[i];
+	for(uint i=0; i<16;++i)  h[i&7] ^= v[i];
 
-	U64TO8( out + 0, S.h[0]);
-	U64TO8( out + 8, S.h[1]);
-	U64TO8( out +16, S.h[2]);
-	U64TO8( out +24, S.h[3]);
-	U64TO8( out +32, S.h[4]);
-	U64TO8( out +40, S.h[5]);
-	U64TO8( out +48, S.h[6]);
-	U64TO8( out +56, S.h[7]);
+	U64TO8( out + 0, h[0]);
+	U64TO8( out + 8, h[1]);
+	U64TO8( out +16, h[2]);
+	U64TO8( out +24, h[3]);
+	U64TO8( out +32, h[4]);
+	U64TO8( out +40, h[5]);
+	U64TO8( out +48, h[6]);
+	U64TO8( out +56, h[7]);
 	
 	uint8_t* work2 = out;
 	uint8_t* work3 = out+64;
+//a = x-1, b = x, c = x&63
+#define WORKINIT(a,b,c)   work3[a] ^= work2[c]; \
+        if(work3[a]&0x80) work3[b]=in[(b+work3[a])&127]; \
+        else              work3[b]=work2[(b+work3[a])&63];
+
 	
     work3[0] = work2[15];
-    for(int x=1;x<320;x++)
+	WORKINIT(0,1,1);
+	WORKINIT(1,2,2);
+	WORKINIT(2,3,3);
+    for(int x=4;x<64;++x)
     {
-        work3[x-1] ^= work2[x&63];
-        if(work3[x-1]<0x80) work3[x]=work2[(x+work3[x-1])&63];
-        else                work3[x]=in[(x+work3[x-1])&127];
+		WORKINIT(x-1,x,x);
+		++x;
+		WORKINIT(x-1,x,x);
+		++x;
+		WORKINIT(x-1,x,x);
+		++x;
+		WORKINIT(x-1,x,x);
     }
-
-    #define READ_PAD8(offset) pad[(offset)&0x3FFFFF]
-    //define READ_PAD32(offset) (*((uint32*)&pad[(offset)&0x3FFFFF]))
+    for(int x=64;x<320;++x)
+    {
+		WORKINIT(x-1,x,x&63);
+		++x;
+		WORKINIT(x-1,x,x&63);
+		++x;
+		WORKINIT(x-1,x,x&63);
+		++x;
+		WORKINIT(x-1,x,x&63);
+    }
 
 	#define READ_PAD32(offset) ((uint)pad[((offset)&0x3FFFFF)] | (((uint)pad[((offset)&0x3FFFFF)+1])<<8) | (((uint)pad[((offset)&0x3FFFFF)+2])<<16) | (((uint)pad[((offset)&0x3FFFFF)+3])<<24))
 
 	#define READ_PAD32_R(offset) ((uint)pad[(offset)] | (((uint)pad[(offset)+1])<<8) | (((uint)pad[(offset)+2])<<16) | (((uint)pad[(offset)+3])<<24))
 
-	#define READ_W32(offset) ((uint)work3[(offset)] + (((uint)work3[(offset)+1])<<8) + (((uint)work3[(offset)+2])<<16) + (((uint)work3[(offset)+3])<<24))
+	#define READ_W32(offset) ((uint)work3[(offset)] + (((uint)work3[(offset)+1])<<8) + (((uint)work3[(offset)+2]&0x3F)<<16))
 
 	ushort* shortptr = (ushort*)(work3+310);
-	uint* uintptr = (ushort*)(work3+312);
+	uint* uintptr = (uint*)(work3+312);
 	uint64 qCount = shortptr[0];
 	qCount |= ((uint64)*uintptr)<<16;
 	qCount |= ((uint64)shortptr[3])<<48;
 
-    uint nExtra=READ_PAD8(qCount+work3[300])>>3;
+    uint nExtra=(pad[(qCount+work3[300])&0x3FFFFF]>>3)+512;
 	uint res;
-    for(uint x=1;x<512+nExtra;x++)
+    for(uint x=1;x<nExtra;++x)
     {
-        qCount+= READ_PAD32( qCount );
-        if(qCount&0x87878700)        work3[qCount%320]++;
+        qCount+= READ_PAD32(qCount);
+        if(qCount&0x87878700)        ++work3[qCount%320];
 
-        qCount-= READ_PAD8( qCount+work3[qCount%160] );
+        qCount-= pad[(qCount+work3[qCount%160])&0x3FFFFF];
         if(qCount&0x80000000)   { qCount+= pad[qCount&0xFFFF]; }
-        else                    { qCount+= READ_PAD32_R( qCount&0x20FAFB ); }
+        else                    { res = qCount&0x20FAFB; qCount+= READ_PAD32_R(res); }
 
 		res = (qCount+work3[qCount%160]) & 0x3FFFFF;
-        qCount+= READ_PAD32_R( res );
-        if(qCount&0xF0000000)        work3[qCount%320]++;
+        qCount+= READ_PAD32_R(res);
+        if(qCount&0xF0000000)        ++work3[qCount%320];
 
 		res = READ_W32(qCount&0xFF);
-        qCount+= READ_PAD32( res );
-		work3[x%320]=work2[x&63]^(uchar)(qCount&0xFF);
+        qCount+= READ_PAD32_R(res);
+		work3[x%320]=work2[x&63]^(qCount&0xFF);
 
 		res = ((qCount>>32)+work3[x%200]) & 0x3FFFFF;
-        qCount+= READ_PAD32_R( res );
+        qCount+= READ_PAD32_R(res);
 		
-		work3[qCount%316] ^= (qCount>>24)&0xFF;
-		work3[qCount%316+1] ^= (qCount>>32)&0xFF;
-		work3[qCount%316+2] ^= (qCount>>40)&0xFF;
-		work3[qCount%316+3] ^= (qCount>>48)&0xFF;
+		//this is an ingenious optimization. gives +2.5% :-)
+		if (qCount&3)
+		{
+			uchar* ram = work3+qCount%316;
+			ram[0] ^= (qCount>>24)&0xFF;
+			ram[1] ^= (qCount>>32)&0xFF;
+			ram[2] ^= (qCount>>40)&0xFF;
+			ram[3] ^= (qCount>>48)&0xFF;
+			if((qCount&7)==3) ++x;
+		}
+		else
+		{
+			uint* ram = work3+qCount%316;
+			*ram ^= qCount>>24;
+		}
 
-        if((qCount&0x07)==0x03) x++;
-        qCount-= READ_PAD8( (x*x) );
-        if((qCount&0x07)==0x01) x++;
+        qCount-= pad[x*x];
+        if((qCount&0x07)==0x01) ++x;
 	}
 
 	uint s[8];

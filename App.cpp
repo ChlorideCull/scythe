@@ -186,20 +186,40 @@ void* LongPollThread(void* param)
 
 void App::Main(vector<string> args)
 {
-	cout << "Reaper version 0.04" << endl;
+	cout << "/--------------------------------------\\" << endl;
+	cout << "|  Reaper version 0.05, coded by mtrlt |" << endl;
+	cout << "|    Donations are welcome! Thanks!    |" << endl;
+	cout << "|  sPuLn5UqBWMBdZF4JVx9GGfFiX55rpKQwR  |" << endl;
+	cout << "\\--------------------------------------/" << endl;
+	cout << endl;
 	if (args.size() < 5)
 	{
-		cout << "Syntax: " << args[0] << " host port user pass" << endl;
+		cout << "Syntax: " << args[0] << " host port user pass [config_filename]" << endl;
 		return;
 	}
+	string config_name = "reaper.conf";
+	if (args.size() >= 6)
+	{
+		config_name = args[5];
+	}
 	getworks = 0;
-	config.Load("reaper.conf");
+	config.Load(config_name);
 	globalconfs.local_worksize = config.GetValue<uint>("worksize");
 	globalconfs.global_worksize = (1<<config.GetValue<uint>("aggression"));
 	globalconfs.threads_per_device = config.GetValue<uint>("threads_per_device");
-	globalconfs.bfi_int = config.GetValue<bool>("bfi_int");
-	globalconfs.bitalign = config.GetValue<bool>("bitalign");
-	globalconfs.bfi_int_fix = config.GetValue<bool>("bfi_int_fix");
+	globalconfs.kernel = config.GetValue<string>("kernel");
+	if (globalconfs.kernel == "")
+		globalconfs.kernel = "reaper.cl";
+	globalconfs.save_binaries = config.GetValue<bool>("save_binaries");
+	uint numdevices = config.GetValueCount("device");
+	for(uint i=0; i<numdevices; ++i)
+		globalconfs.devices.push_back(config.GetValue<uint>("device", i));
+
+	if (globalconfs.local_worksize > globalconfs.global_worksize)
+	{
+		cout << "Aggression is too low for the current worksize. Increasing." << endl;
+		globalconfs.global_worksize = globalconfs.local_worksize;
+	}
 
 	BlockHash_Init();
 	current_work.old = true;
@@ -275,7 +295,7 @@ void App::Main(vector<string> args)
 				float stalepercent = 100.0f*(float)shares_invalid/float(shares_invalid+shares_valid);
 				if (shares_valid+shares_invalid == 0)
 					stalepercent = 0.0f;
-				cout << dec << "   " << double(totalhashes)/(ticks-starttime) << " kH/s, shares: " << shares_valid << "|" << shares_invalid << "|" << shares_hwinvalid << ", invalid " << stalepercent << "%, eff " << (getworks==0?0.0:(double(100*shares_valid/getworks)/100.0)) << ", time " << (ticks-starttime)/1000 << "s    \r";
+				cout << dec << "   " << double(totalhashes)/(ticks-starttime) << " kH/s, shares: " << shares_valid << "|" << shares_invalid << "|" << shares_hwinvalid << ", invalid " << stalepercent << "%, time " << (ticks-starttime)/1000 << "s    \r";
 			}
 		}
 	}
