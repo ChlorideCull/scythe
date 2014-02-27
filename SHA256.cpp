@@ -361,3 +361,35 @@ SHARETEST_VALUE ShareTest_BTC(uint* workdata, uint* target)
 		return false;
 	}*/
 }
+
+void SWeird(uint* s, const uint* const pad)
+{
+#define A s[0]
+#define B s[1]
+#define C s[2]
+#define D s[3]
+#define E s[4]
+#define F s[5]
+#define G s[6]
+#define H s[7]
+	for(uint i=0; i<64; i+=8)
+	{
+		uint tmp = pad[A&0xFFFFF];
+		sharound(A,B,C,D,E,F,G,H,tmp,K[i+0]);
+		sharound(H,A,B,C,D,E,F,G,tmp,K[i+1]);
+		sharound(G,H,A,B,C,D,E,F,tmp,K[i+2]);
+		sharound(F,G,H,A,B,C,D,E,tmp,K[i+3]);
+		sharound(E,F,G,H,A,B,C,D,tmp,K[i+4]);
+		sharound(D,E,F,G,H,A,B,C,tmp,K[i+5]);
+		sharound(C,D,E,F,G,H,A,B,tmp,K[i+6]);
+		sharound(B,C,D,E,F,G,H,A,tmp,K[i+7]);
+	}
+#undef A
+#undef B
+#undef C
+#undef D
+#undef E
+#undef F
+#undef G
+#undef H
+}

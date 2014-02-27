@@ -176,11 +176,13 @@ void SubmitShare(Curl& curl, Share& w, unsigned char* scratchbuf)
 			}
 			else
 			{
+				getwork_now = true;
 				cout << "Stupid response from server." << endl;
 			}
 		}
 		else
 		{
+			getwork_now = true;
 			cout << "Weird response from server." << endl;
 		}
 	}
@@ -284,8 +286,13 @@ struct LongPollThreadParams
 
 void* LongPollThread(void* param)
 {
-	cout << "Long polling disabled." << endl;
-/*	LongPollThreadParams* p = (LongPollThreadParams*)param; 
+	if(servers.size() != 1)
+	{
+		cout << "Long polling disabled when using many servers" << endl;
+		pthread_exit(NULL);
+		return NULL;
+	}
+	LongPollThreadParams* p = (LongPollThreadParams*)param; 
 
 	Curl* curl = p->curl;
 	
@@ -331,14 +338,15 @@ void* LongPollThread(void* param)
 			Wait_ms(ticks-lastcall);
 		}
 		lastcall = ticks;
-		string r = curl.GetWork_LP(LP_path, 60);
+		string r = curl->GetWork(servers[0], LP_path, 60);
+		cout << "Got LP" << endl;
 		p->app->Parse(r);
 	}
 	pthread_exit(NULL);
 	return NULL;
 
 couldnt_parse:
-	cout << "Couldn't parse long polling URL [" << LP_url << "]. turning LP off." << endl;*/
+	cout << "Couldn't parse long polling URL [" << LP_url << "]. turning LP off." << endl;
 	pthread_exit(NULL);
 	return NULL;
 }
@@ -418,7 +426,7 @@ void App::SetupCurrency()
 		globalconfs.coin.sharekhs = pow(2.0,32.0)/1000.0;
 	if (globalconfs.coin.protocol == "litecoin")
 		globalconfs.coin.sharekhs = pow(2.0,16.0)/1000.0;
-	if (globalconfs.coin.protocol == "solidcoin")
+	if (globalconfs.coin.protocol == "solidcoin" || globalconfs.coin.protocol == "solidcoin3")
 		globalconfs.coin.sharekhs = pow(2.0,17.0)/1000.0;
 
 	if (globalconfs.coin.cputhreads == 0 && globalconfs.coin.threads_per_gpu == 0)
@@ -431,8 +439,6 @@ vector<ServerSettings> servers;
 void App::LoadServers()
 {
 	uint servercount = globalconfs.coin.config.GetValueCount("host");
-	if (servercount > 1)
-		servercount = 1;
 	for(uint i=0; i<servercount; ++i)
 	{
 		ServerSettings s;
@@ -450,7 +456,7 @@ void App::Main(vector<string> args)
 {
 	cout << "\\|||||||||||||||||||||/" << endl;
 	cout << "-  Reaper " << REAPER_VERSION << " " << REAPER_PLATFORM << "  -" << endl;
-	cout << "-       BETA 3        -" << endl;
+	cout << "-       BETA 4        -" << endl;
 	cout << "-   coded by mtrlt    -" << endl;
 	cout << "/|||||||||||||||||||||\\" << endl;
 	cout << endl;
@@ -484,9 +490,8 @@ void App::Main(vector<string> args)
 	for(uint i=0; i<numdevices; ++i)
 		globalconfs.devices.push_back(config.GetValue<uint>("device", i));
 
-
 #ifdef CPU_MINING_ONLY
-	if (globalconfs.cputhreads == 0)
+	if (globalconfs.coin.cputhreads == 0)
 	{
 		throw string("cpu_mining_threads is zero. Nothing to do, quitting.");
 	}
@@ -509,10 +514,13 @@ void App::Main(vector<string> args)
 
 	opencl.Init();
 	cpuminer.Init();
-
+	current_server_id = (current_server_id+1)%servers.size();
 	Parse(curl.GetWork(servers[current_server_id]));
 
-	const int work_update_period_ms = 7500;
+	int work_update_period_ms = globalconfs.coin.config.GetValue<uint>("getwork_rate");
+
+	if (work_update_period_ms == 0)
+		work_update_period_ms = 7500;
 
 	pthread_t longpollthread;
 	LongPollThreadParams lp_params;
@@ -560,10 +568,12 @@ void App::Main(vector<string> args)
 		}
 		if (getwork_now || timeclock - workupdate >= work_update_period_ms)
 		{
-			uint time = ticker();
+			uint timmii = ticker();
+			current_server_id = (current_server_id+1)%servers.size();
 			Parse(curl.GetWork(servers[current_server_id]));
-			if (ticker()-time > 5000)
-				cout << "Getwork took " << (ticker()-time)/1000.0 << " s!  " << endl;
+			timmii = ticker()-timmii;
+			if (timmii > 5000)
+				cout << "Getwork took " << timmii/1000.0 << " s!  " << endl;
 			getwork_now = false;
 		}
 		if (timeclock - ticks >= 1000)
@@ -645,7 +655,7 @@ void App::Parse(string data)
 
 	if (globalconfs.coin.protocol == "bitcoin" || globalconfs.coin.protocol == "litecoin")
 		Parse_BTC(data);
-	if (globalconfs.coin.protocol == "solidcoin")
+	if (globalconfs.coin.protocol == "solidcoin" || globalconfs.coin.protocol == "solidcoin3")
 		Parse_SLC(data);
 }
 
@@ -747,8 +757,8 @@ void App::Parse_BTC(string data)
 			newwork.midstate = CalculateMidstate(HexStringToVector(result["data"].asString().substr(0,128)));
 		newwork.data = HexStringToVector(result["data"].asString().substr(0, 160));
 		newwork.old = false;
-		newwork.time = clock();
-		current_work_time = clock();
+		newwork.time = ticker();
+		current_work_time = ticker();
 
 		if (!targetprinted)
 		{
@@ -771,7 +781,7 @@ void App::Parse_BTC(string data)
 		}
 
 		Precalc_BTC(newwork,opencl.GetVectorSize());
-		current_work.time = clock();
+		current_work.time = ticker();
 		pthread_mutex_lock(&current_work_mutex);
 		current_work = newwork;
 		pthread_mutex_unlock(&current_work_mutex);

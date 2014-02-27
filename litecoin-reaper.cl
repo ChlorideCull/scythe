@@ -648,7 +648,7 @@ void scrypt_core(uint4 X[8], __global uint4*restrict lookup)
 		for(uint i=0; i<LOOKUP_GAP; ++i) 
 			salsa(X);
 	}
-#if (LOOKUP_GAP != 2) && (LOOKUP_GAP != 4) && (LOOKUP_GAP != 8)
+#if (LOOKUP_GAP != 1) && (LOOKUP_GAP != 2) && (LOOKUP_GAP != 4) && (LOOKUP_GAP != 8)
 	{
 		uint y = (1024/LOOKUP_GAP);
 #pragma unroll
@@ -666,7 +666,9 @@ void scrypt_core(uint4 X[8], __global uint4*restrict lookup)
 #pragma unroll
 		for(uint z=0; z<zSIZE; ++z)
 			V[z] = lookup[CO];
-#if (LOOKUP_GAP == 2)
+
+#if (LOOKUP_GAP == 1)
+#elif (LOOKUP_GAP == 2)
 		if (j&1)
 			salsa(V);
 #else
@@ -747,4 +749,3 @@ __kernel void search(__global uint4*restrict input, __global uint*restrict outpu
  * This file was originally written by Colin Percival as part of the Tarsnap
  * online backup system.
  */
- 

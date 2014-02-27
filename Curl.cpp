@@ -85,13 +85,14 @@ string Curl::GetWork(ServerSettings& s, string path, uint timeout)
 
 string Curl::TestWork(ServerSettings& s, string work)
 {
-	return Execute(s,TESTWORK, work, "", 1);
+	return Execute(s,TESTWORK, work, "", 30);
 }
 
 string Curl::Execute(ServerSettings& s, Curl::EXEC_TYPE type, string work, string path, uint timeout)
 {
 	void* curl = Init();
 	string responsedata;
+	curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
 	curl_easy_setopt(curl, CURLOPT_URL, ("http://" + s.host + path).c_str());
 	curl_easy_setopt(curl, CURLOPT_USERPWD, (s.user + ":" + s.pass).c_str());
 	curl_easy_setopt(curl, CURLOPT_PORT, s.port);
@@ -106,7 +107,7 @@ string Curl::Execute(ServerSettings& s, Curl::EXEC_TYPE type, string work, strin
 
 	if (globalconfs.coin.protocol == "bitcoin" || globalconfs.coin.protocol == "litecoin")
 		Execute_BTC(curl,type,work,path,timeout);
-	else if (globalconfs.coin.protocol == "solidcoin")
+	else if (globalconfs.coin.protocol == "solidcoin" || globalconfs.coin.protocol == "solidcoin3")
 		Execute_SLC(curl,type,work,path,timeout);
 	else
 		cout << "Wrong protocol type " << globalconfs.coin.protocol << "." << endl;
@@ -117,9 +118,10 @@ string Curl::Execute(ServerSettings& s, Curl::EXEC_TYPE type, string work, strin
 void Curl::Execute_BTC(void* curl, Curl::EXEC_TYPE type, string work, string path, uint timeout)
 {
 	curl_slist* headerlist = NULL;
+	headerlist = curl_slist_append(headerlist, "Accept: */*");
 	headerlist = curl_slist_append(headerlist, "Content-Type: application/json");
-	headerlist = curl_slist_append(headerlist, "Accept: application/json");
 	headerlist = curl_slist_append(headerlist, "User-Agent: reaper/" REAPER_VERSION);
+	headerlist = curl_slist_append(headerlist, "User-Agent: jansson 1.3");
 	headerlist = curl_slist_append(headerlist, "X-Mining-Extensions: midstate rollntime");
 
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headerlist);

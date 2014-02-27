@@ -80,6 +80,8 @@ const uint K[64] =
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 };
 
+#ifndef CPU_MINING_ONLY
+
 void PreCalc(uchar* in, cl_uint8& s)
 {
 	uint work[64];
@@ -163,7 +165,8 @@ void PreCalc(uchar* in, cl_uint8& s)
 #undef H
 }
 
-#ifndef CPU_MINING_ONLY
+void v3hash(uchar* input, uchar* scratch, uchar* output);
+
 void* Reap_GPU_SLC(void* param)
 {
 	_clState* state = (_clState*)param;
@@ -184,6 +187,10 @@ void* Reap_GPU_SLC(void* param)
 
 	bool write_kernel_output = true;
 	bool write_kernel_input = true;
+
+	uint scversion=2;
+	if (globalconfs.coin.name == "solidcoin3")
+		scversion=3;
 
 	size_t base = 0;
 	clSetKernelArg(state->kernel, 2, sizeof(cl_mem), &state->padbuffer8);
@@ -273,10 +280,13 @@ void* Reap_GPU_SLC(void* param)
 			uint result = kernel_output[i];
 			uchar testmem[512];
 			uchar finalhash[32];
-			memcpy(testmem, tempdata, 128);
-			*((uint*)&testmem[108]) = result;
-			BlockHash_1(testmem, finalhash);
 
+			if (scversion == 2)
+			{
+				memcpy(testmem, tempdata, 128);
+				*((uint*)&testmem[108]) = result;
+				BlockHash_1(testmem, finalhash);
+			}
 			if (finalhash[31] != 0 || finalhash[30] != 0 || finalhash[29] >= 0x80)
 				++shares_hwinvalid;
 			else
@@ -318,6 +328,8 @@ void* Reap_GPU_SLC(void* param)
 	pthread_exit(NULL);
 	return NULL;
 }
+
+#endif
 
 #define Ch(x, y, z) (z ^ (x & (y ^ z)))
 #define Ma(x, y, z) ((y & z) | (x & (y | z)))
@@ -399,6 +411,7 @@ void Precalc_BTC(Work& work, uint vectors)
 	pushvector(work.precalc,E,vectors);
 	pushvector(work.precalc,W19_partial,vectors);
 }
+#ifndef CPU_MINING_ONLY
 
 pthread_mutex_t noncemutex = PTHREAD_MUTEX_INITIALIZER;
 uint nonce = 0;
@@ -412,7 +425,7 @@ uint NextNonce(uint vectors)
 		uint* realdata = (uint*)(&current_work.data[68]);
 		*realdata = EndianSwap(EndianSwap(*realdata)+1);
 		Precalc_BTC(current_work,vectors);
-		current_work.time = clock();
+		current_work.time = ticker();
 		pthread_mutex_unlock(&current_work_mutex);
 		nonce = 0;
 	}
@@ -597,7 +610,7 @@ extern Config config;
 void OpenCL::Init()
 {
 #ifdef CPU_MINING_ONLY
-	if (globalconfs.threads_per_gpu != 0)
+	if (globalconfs.coin.threads_per_gpu != 0)
 	{
 		cout << "This binary was built with CPU mining support only." << endl;
 	}
@@ -658,7 +671,7 @@ void OpenCL::Init()
 	cout << "Using platform number " << globalconfs.platform << endl;
 
 	cl_uint numDevices;
-	cl_uint devicetype = CL_DEVICE_TYPE_GPU;
+	cl_uint devicetype = CL_DEVICE_TYPE_ALL;
 	status = clGetDeviceIDs(platform, devicetype, 0, NULL, &numDevices);
 	if(status != CL_SUCCESS)
 	{
@@ -892,7 +905,7 @@ void OpenCL::Init()
 			throw string("Error creating OpenCL kernel");
 		}
 		cl_mem padbuffer8;
-		if(globalconfs.coin.protocol == "solidcoin")
+		if(globalconfs.coin.protocol == "solidcoin" || globalconfs.coin.protocol == "solidcoin3")
 		{
 			padbuffer8 = clCreateBuffer(clState.context, CL_MEM_READ_ONLY, 1024*1024*4+8, NULL, &status);
 		}
@@ -913,7 +926,7 @@ void OpenCL::Init()
 		for(uint thread_id = 0; thread_id < globalconfs.coin.threads_per_gpu; ++thread_id)
 		{
 			GPUstate.commandQueue = clCreateCommandQueue(clState.context, devices[device_id], 0, &status);
-			if (thread_id == 0 && globalconfs.coin.protocol == "solidcoin")
+			if (thread_id == 0 && (globalconfs.coin.protocol == "solidcoin" || globalconfs.coin.protocol == "solidcoin3"))
 			{
 				clEnqueueWriteBuffer(GPUstate.commandQueue, padbuffer8, true, 0, 1024*1024*4+8, BlockHash_1_MemoryPAD8, 0, NULL, NULL);
 			}
@@ -955,7 +968,7 @@ void OpenCL::Init()
 		cout << i+1 << "...";
 		if (globalconfs.coin.protocol == "bitcoin")
 			pthread_create(&GPUstates[i].thread, NULL, Reap_GPU_BTC, (void*)&GPUstates[i]);
-		else if (globalconfs.coin.protocol == "solidcoin")
+		else if (globalconfs.coin.protocol == "solidcoin" || globalconfs.coin.protocol == "solidcoin3")
 			pthread_create(&GPUstates[i].thread, NULL, Reap_GPU_SLC, (void*)&GPUstates[i]);
 		else if (globalconfs.coin.protocol == "litecoin")
 			pthread_create(&GPUstates[i].thread, NULL, Reap_GPU_LTC, (void*)&GPUstates[i]);
