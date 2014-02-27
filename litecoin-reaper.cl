@@ -644,7 +644,6 @@ void scrypt_core(uint4 X[8], __global uint4*restrict lookup)
 	shittify(X);
 	const uint zSIZE = 8;
 	const uint ySIZE = (1024/LOOKUP_GAP+(1024%LOOKUP_GAP>0));
-#define CONCURRENT_THREADS 6144
 	const uint xSIZE = CONCURRENT_THREADS;
 	uint x = get_global_id(0)%xSIZE;
 
@@ -668,7 +667,7 @@ void scrypt_core(uint4 X[8], __global uint4*restrict lookup)
 #endif
 	for (uint i=0; i<1024; ++i) 
 	{
-		uint4 V[zSIZE];
+		uint4 V[8];
 		uint j = X[7].x & 0x3FF;
 		uint y = (j/LOOKUP_GAP);
 #pragma unroll

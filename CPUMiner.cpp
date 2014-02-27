@@ -4,14 +4,14 @@
 #include "pthread.h"
 #include "RSHash.h"
 
-void CPU_Got_share(Reap_CPU_param* state, uchar* tempdata, uint serverid)
+void CPU_Got_share(Reap_CPU_param* state, uchar* tempdata, vector<uchar>& target, uint serverid)
 {
-/*	Share s(vector<uchar>(),serverid,0);
+	Share s(vector<uchar>(),target,serverid);
 	s.data.assign(tempdata,tempdata+128);
 	pthread_mutex_lock(&state->share_mutex);
 	state->shares_available = true;
 	state->shares.push_back(s);
-	pthread_mutex_unlock(&state->share_mutex);*/
+	pthread_mutex_unlock(&state->share_mutex);
 }
 
 bool CPU_Hash_Below_Target(uchar* hash, uchar* target)

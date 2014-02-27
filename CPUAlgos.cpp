@@ -10,7 +10,7 @@ extern ullint cpu_shares_hwvalid;
 extern Work current_work;
 extern pthread_mutex_t current_work_mutex;
 
-void CPU_Got_share(Reap_CPU_param* state, uchar* tempdata, uint server_id);
+void CPU_Got_share(Reap_CPU_param* state, uchar* tempdata, vector<uchar>& target, uint serverid);
 bool CPU_Hash_Below_Target(uchar* hash, uchar* target);
 
 void* Reap_CPU_V3(void* param)
@@ -64,7 +64,7 @@ void* Reap_CPU_V3(void* param)
 				else
 					cpu_shares_hwvalid++;
 				if (CPU_Hash_Below_Target(finalhash, &tempwork.target_share[0]))
-					CPU_Got_share(state,tempdata,current_server_id);
+					CPU_Got_share(state,tempdata,tempwork.target_share,current_server_id);
 			}
 			if (hash_results[1])
 			{
@@ -74,7 +74,7 @@ void* Reap_CPU_V3(void* param)
 				else
 					cpu_shares_hwvalid++;
 				if (CPU_Hash_Below_Target(finalhash, &tempwork.target_share[0]))
-					CPU_Got_share(state,tempdata+512,current_server_id);
+					CPU_Got_share(state,tempdata+512,tempwork.target_share,current_server_id);
 			}
 			if (hash_results[2])
 			{
@@ -84,7 +84,7 @@ void* Reap_CPU_V3(void* param)
 				else
 					cpu_shares_hwvalid++;
 				if (CPU_Hash_Below_Target(finalhash, &tempwork.target_share[0]))
-					CPU_Got_share(state,tempdata+1024,current_server_id);
+					CPU_Got_share(state,tempdata+1024,tempwork.target_share,current_server_id);
 			}
 			++*(uint*)&tempdata[108];
 			++*(uint*)&tempdata[108+512];
@@ -144,7 +144,7 @@ void* Reap_CPU_V2(void* param)
 				else
 					cpu_shares_hwvalid++;
 				if (CPU_Hash_Below_Target(finalhash, &tempwork.target_share[0]))
-					CPU_Got_share(state,tempdata,current_server_id);
+					CPU_Got_share(state,tempdata,tempwork.target_share,current_server_id);
 			}
 			if (hash_results[1])
 			{
@@ -154,7 +154,7 @@ void* Reap_CPU_V2(void* param)
 				else
 					cpu_shares_hwvalid++;
 				if (CPU_Hash_Below_Target(finalhash, &tempwork.target_share[0]))
-					CPU_Got_share(state,tempdata+512,current_server_id);
+					CPU_Got_share(state,tempdata+512,tempwork.target_share,current_server_id);
 			}
 			++*(uint*)&tempdata[108];
 			++*(uint*)&tempdata[108+512];
@@ -210,7 +210,7 @@ void* Reap_CPU_V1(void* param)
 				else
 					cpu_shares_hwvalid++;
 				if (CPU_Hash_Below_Target(finalhash, &tempwork.target_share[0]))
-					CPU_Got_share(state,tempdata,current_server_id);
+					CPU_Got_share(state,tempdata,tempwork.target_share,current_server_id);
 			}
 			++*(uint*)&tempdata[108];
 		}

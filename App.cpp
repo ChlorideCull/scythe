@@ -450,10 +450,20 @@ void App::Main(vector<string> args)
 {
 	cout << "\\|||||||||||||||||||||/" << endl;
 	cout << "-  Reaper " << REAPER_VERSION << " " << REAPER_PLATFORM << "  -" << endl;
-	cout << "-       BETA 1        -" << endl;
+	cout << "-       BETA 2        -" << endl;
 	cout << "-   coded by mtrlt    -" << endl;
 	cout << "/|||||||||||||||||||||\\" << endl;
 	cout << endl;
+	cout << "/----------------------------------------------\\" << endl;
+	cout << "| Please donate to support Reaper development! |" << endl;
+	cout << "|----------------------------------------------|" << endl;
+	cout << "|   SLC: sdJMdNAEaJMVaxPFxaWibty9bec6Y4ubJK    |" << endl;
+	cout << "|   BTC: 1DjMcD5oQUap7kXrwa9J8S5esMryUs777o    |" << endl;
+	cout << "|   LTC: LZ5xurMLgdEzeuXuJvYB4DwyprCC1asfmp    |" << endl;
+	cout << "\\----------------------------------------------/" << endl;
+	cout << endl;
+	cout << endl;
+
 	string config_name = "reaper.conf";
 	if (args.size() > 2)
 	{

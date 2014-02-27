@@ -519,7 +519,7 @@ vector<uchar> CalculateMidstate(vector<uchar> in);
 
 void* Reap_GPU_LTC(void* param)
 {
-	const uint TOTAL_OUTPUTS = 256;
+	const uint TOTAL_OUTPUTS = KERNEL_OUTPUT_SIZE;
 	_clState* state = (_clState*)param;
 	state->hashes = 0;
 
@@ -560,7 +560,6 @@ void* Reap_GPU_LTC(void* param)
 		clEnqueueNDRangeKernel(state->commandQueue, state->kernel, 1, &nonce, &globalsize, &localsize, 0, NULL, NULL);
 		clEnqueueReadBuffer(state->commandQueue, state->CLbuffer[1], true, 0, TOTAL_OUTPUTS*sizeof(uint), gpu_outputs, 0, NULL, NULL);
 		bool writeoutput=false;
-		uint gpuoutput;
 		for(uint i=0; i<TOTAL_OUTPUTS; ++i)
 		{
 			if (!gpu_outputs[i])
@@ -738,7 +737,7 @@ void OpenCL::Init()
 
 		const char* see = source.c_str();
 
-		char pbuff[100];
+		char pbuff[512];
 		status = clGetDeviceInfo(devices[device_id], CL_DEVICE_NAME, sizeof(pbuff), pbuff, NULL);
 		cout << "\t" << device_id << "\t" << pbuff;
 		if(status != CL_SUCCESS)
@@ -761,6 +760,17 @@ void OpenCL::Init()
 			if (*p >= 33 && *p < 127 && *p != '\\' && *p != ':' && *p != '/' && *p != '*' && *p != '<' && *p != '>' && *p != '"' && *p != '?' && *p != '|')
 				filebinaryname += *p;
 		}
+		filebinaryname += string("-") + ToString(globalconfs.coin.local_worksize);
+		if (globalconfs.coin.protocol == "litecoin")
+		{
+			filebinaryname += string("-") + ToString(globalconfs.coin.config.GetValue<string>("gpu_thread_concurrency"));
+			filebinaryname += string("-") + ToString(globalconfs.coin.config.GetValue<string>("lookup_gap"));
+		}
+		if (globalconfs.coin.protocol == "bitcoin")
+		{
+			filebinaryname += string("-") + ToString(globalconfs.coin.config.GetValue<string>("vectors"));
+		}
+
 		filebinaryname = sourcefilename.substr(0,sourcefilename.size()-3) + REAPER_VERSION + "." + filebinaryname + ".bin";
 		if (globalconfs.save_binaries)
 		{
@@ -785,6 +795,8 @@ void OpenCL::Init()
 		}
 
 		_clState GPUstate;
+		status = clGetDeviceInfo(devices[device_id], CL_DEVICE_EXTENSIONS, sizeof(pbuff), pbuff, NULL);
+		vector<string> extensions = Explode(string(pbuff),' ');
 
 		if (filebinary == NULL)
 		{
@@ -795,8 +807,11 @@ void OpenCL::Init()
 
 			string compile_options;
 			compile_options += " -D WORKSIZE=" + ToString(globalconfs.coin.local_worksize);
-			if (config.GetValue<bool>("bfi_int"))
-				compile_options += " -D BFI_INT";
+
+			bool bfi_int = (std::find(extensions.begin(),extensions.end(), "cl_amd_media_ops") != extensions.end());
+			
+			if (bfi_int)
+				compile_options += " -D BFI_INT -D BITALIGN -D BFI_INT_FIX";
 			compile_options += " -D SHAREMASK=";
 			compile_options += globalconfs.coin.config.GetValue<string>("gpu_sharemask");
 			uint vectors = GetVectorSize();
@@ -804,7 +819,6 @@ void OpenCL::Init()
 				compile_options += " -D VECTORS";
 			else if (vectors == 4)
 				compile_options += " -D VECTORS4";
-			compile_options += " -D BITALIGN -D BFI_INT_FIX ";
 			if (globalconfs.coin.protocol == "litecoin")
 			{
 				compile_options += string(" -D LOOKUP_GAP=") + globalconfs.coin.config.GetValue<string>("lookup_gap");
@@ -834,7 +848,7 @@ void OpenCL::Init()
 				binaries[curr_binary] = new uchar[binarysizes[curr_binary]];
 			}
 			clGetProgramInfo(GPUstate.program, CL_PROGRAM_BINARIES, sizeof(uchar*)*device_amount, binaries, NULL);
-			if(config.GetValue<bool>("bfi_int"))
+			if(bfi_int)
 			{
 				uint patched_instructions = 0;
 				for(uint binary_id = 0; binary_id < device_amount; ++binary_id)
@@ -882,10 +896,10 @@ void OpenCL::Init()
 						for(uint k = 0; k < size; k+=8) 
 						{
 							ullint instruction = GetValue<ullint>(binarydata,sectionStart + k);
-							if((instruction & 0x9003F00002001000L) == 0x1C00000000000ULL) 
+							if((instruction & 0x9003F00002001000ULL) == 0x1C00000000000ULL) 
 							{
 								++patched_instructions;
-								SetValue<ullint>(binarydata + sectionStart + k, instruction^0x1000000000000L);
+								SetValue<ullint>(binarydata + sectionStart + k, instruction^0x1000000000000ULL);
 							}
 						}
 					}	
@@ -986,7 +1000,6 @@ void OpenCL::Init()
 			}
 
 			GPUstate.offset = 0x100000000ULL/globalconfs.coin.threads_per_gpu/numDevices*(device_id*globalconfs.coin.threads_per_gpu+thread_id);
-			cout << "offset: " << hex << GPUstate.offset << dec << endl;
 
 			pthread_mutex_t initializer = PTHREAD_MUTEX_INITIALIZER;
 

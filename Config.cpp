@@ -45,7 +45,6 @@ void Config::Load(string filename, vector<string> included_already)
 	config_values["long_polling"] = "bool";
 	config_values["include"] = "string";
 	config_values["cpu_algorithm"] = "string";
-	config_values["bfi_int"] = "bool";
 	config_values["protocol"] = "string";
 	config_values["mine"] = "string";
 	config_values["gpu_sharemask"] = "string";
