@@ -10,7 +10,7 @@ struct Reap_CPU_param
 	pthread_t thread;
 
 	bool shares_available;
-	deque<vector<uchar> > shares;
+	deque<Share> shares;
 	pthread_mutex_t share_mutex;
 
 	ullint hashes;

@@ -4,11 +4,17 @@ project(reaper)
 
 ## Version ##
 
-set(REAPER_VERSION "v12")
+set(REAPER_VERSION "v13")
 
 ## Options ##
 
 option(CPU_MINING_ONLY "Do not compile the GPU mining part" OFF)
+if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
+option(REAPER_BUILD_64BIT "AUTOMATIC, DO NOT TOUCH: Compiling 64bit" ON)
+else( CMAKE_SIZEOF_VOID_P EQUAL 8 )
+option(REAPER_BUILD_32BIT "AUTOMATIC, DO NOT TOUCH: Compiling 32bit" ON)
+endif( CMAKE_SIZEOF_VOID_P EQUAL 8 )
+
 
 ## Global config ##
 
@@ -23,14 +29,16 @@ set(SOURCES
     App.cpp
     AppOpenCL.cpp
     Blake512.cpp
-    CPUMiner.cpp
     Config.cpp
+	CPUAlgos.cpp
+    CPUMiner.cpp
     Curl.cpp
     json_reader.cpp
     json_value.cpp
     json_writer.cpp
     main.cpp
     RSHash.cpp
+	scrypt.cpp
     ServerSettings.cpp
     SHA256.cpp
     Util.cpp
@@ -40,8 +48,9 @@ set(HEADERS
 	App.h
 	AppOpenCL.h
 	Blake512.h
-	CPUMiner.h
 	Config.h
+	CPUAlgos.h
+	CPUMiner.h
 	Curl.h
 	Global.h
 	RSHash.h

@@ -1,16 +1,11 @@
 #ifndef CURLMUNACPP
 #define CURLMUNACPP
 
+#include "ServerSettings.h"
+
 class Curl
 {
 private:
-	void* curl;
-
-	string username;
-	string password;
-	string host;
-	unsigned short port;
-
 	enum EXEC_TYPE
 	{
 		GETWORK,
@@ -18,32 +13,24 @@ private:
 		TESTWORK,
 	};
 
-	string Execute(Curl::EXEC_TYPE type, string work, string path, uint timeout);
+	string Execute(ServerSettings& s, Curl::EXEC_TYPE type, string work, string path, uint timeout);
+	void Execute_SLC(void* curl, Curl::EXEC_TYPE type, string work, string path, uint timeout);
+	void Execute_BTC(void* curl, Curl::EXEC_TYPE type, string work, string path, uint timeout);
 
 public:
-	string proxy;
 
-	Curl() { curl = NULL; }
+	Curl() {}
 	~Curl() {}
 
 	static void GlobalInit();
+	static void GlobalQuit();
 
-	void Init();
-	void Quit();
+	void* Init();
+	void Quit(void* curl);
 
-	string GetWork_LP(string path="", uint timeout = 60);
-	string GetWork(string path="", uint timeout = 5);
-	string TestWork(string work);
-
-	void SetUsername(string username_) { username = username_; }
-	void SetPassword(string password_) { password = password_; }
-	void SetHost(string host_) { host = host_; }
-	void SetPort(string port_);
-
-	string GetUsername() { return username; }
-	string GetPassword() { return password; }
-	string GetHost() { return host; }
-	string GetPort();
+	string GetWork_LP(ServerSettings& s, string path="", uint timeout = 60);
+	string GetWork(ServerSettings& s, string path="", uint timeout = 5);
+	string TestWork(ServerSettings& s, string work);
 };
 
 #endif

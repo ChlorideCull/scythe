@@ -18,6 +18,10 @@ uint rotl(uint x, uint y)
 {
 	return (x<<y)|(x>>(32-y));
 }
+uint rotr(uint x, uint y)
+{
+	return (x>>y)|(x<<(32-y));
+}
 
 #define Ch(x, y, z) (z ^ (x & (y ^ z)))
 #define Ma(x, y, z) ((y & z) | (x & (y | z)))
@@ -237,4 +241,123 @@ void Sha256(unsigned char* in, unsigned char* out)
 	uint* outi = (uint*)out;
 	for(uint i=0; i<8; ++i)
 		outi[i] = EndianSwap(s[i]);
+}
+
+uint sha256_init[8] = 
+{
+	0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+};
+#define Wr(x,a,b,c) (rotr(x,a)^(x>>c)^rotr(x,b))
+
+vector<uchar> CalculateMidstate(vector<uchar> workdata)
+{
+	uint hash[8];
+	uint initial[8];
+	uint work[64];
+	memcpy(hash, sha256_init, 8*sizeof(uint));
+
+	memcpy(work, &workdata[0], 16*sizeof(uint));
+	memcpy(initial, hash, 8*sizeof(uint));
+	for(uint i=0; i<64; ++i)
+	{
+		if (i>=16)
+			work[i] = work[i-7] + work[i-16] + Wr(work[i-2],17,19,10) + Wr(work[i-15],7,18,3);
+		sharound(hash[(0-i)&7],hash[(1-i)&7],hash[(2-i)&7],hash[(3-i)&7],hash[(4-i)&7],hash[(5-i)&7],hash[(6-i)&7],hash[(7-i)&7],work[i],K[i]);
+	}
+	for(uint i=0; i<8; ++i)
+		hash[i] += initial[i];
+	vector<uchar> ret;
+	ret.assign(32,0);
+	for(uint i=0; i<32; ++i)
+	{
+		ret[i] = ((uchar*)hash)[i];
+	}
+	return ret;
+}
+
+
+uint EndianSwap(uint n);
+SHARETEST_VALUE ShareTest_BTC(uint* workdata, uint* target)
+{
+	uint hash[8];
+	uint initial[8];
+	uint work[64];
+	memcpy(hash, sha256_init, 8*sizeof(uint));
+
+	memcpy(work, workdata, 16*sizeof(uint));
+	memcpy(initial, hash, 8*sizeof(uint));
+	for(uint i=0; i<64; ++i)
+	{
+		if (i>=16)
+			work[i] = work[i-7] + work[i-16] + Wr(work[i-2],17,19,10) + Wr(work[i-15],7,18,3);
+		sharound(hash[(0-i)&7],hash[(1-i)&7],hash[(2-i)&7],hash[(3-i)&7],hash[(4-i)&7],hash[(5-i)&7],hash[(6-i)&7],hash[(7-i)&7],work[i],K[i]);
+	}
+	for(uint i=0; i<8; ++i)
+		hash[i] += initial[i];
+
+	memset(work, 0, 16*sizeof(uint));
+	memcpy(work, workdata+16, 4*sizeof(uint));
+	work[4] = (1U<<31U);
+	work[15] = 0x280;
+	memcpy(initial, hash, 8*sizeof(uint));
+	for(uint i=0; i<64; ++i)
+	{
+		if (i>=16)
+			work[i] = work[i-7] + work[i-16] + Wr(work[i-2],17,19,10) + Wr(work[i-15],7,18,3);
+		sharound(hash[(0-i)&7],hash[(1-i)&7],hash[(2-i)&7],hash[(3-i)&7],hash[(4-i)&7],hash[(5-i)&7],hash[(6-i)&7],hash[(7-i)&7],work[i],K[i]);
+	}
+	for(uint i=0; i<8; ++i)
+		hash[i] += initial[i];
+
+	memset(work, 0, 16*sizeof(uint));
+	memcpy(work, hash, 8*sizeof(uint));
+	work[8] = (1U<<31U);
+	work[15] = 0x100;
+
+	memcpy(hash, sha256_init, 8*sizeof(uint));
+	memcpy(initial, hash, 8*sizeof(uint));
+	for(uint i=0; i<64; ++i)
+	{
+		if (i>=16)
+			work[i] = work[i-7] + work[i-16] + Wr(work[i-2],17,19,10) + Wr(work[i-15],7,18,3);
+		sharound(hash[(0-i)&7],hash[(1-i)&7],hash[(2-i)&7],hash[(3-i)&7],hash[(4-i)&7],hash[(5-i)&7],hash[(6-i)&7],hash[(7-i)&7],work[i],K[i]);
+	}
+
+	for(uint i=0; i<8; ++i)
+		hash[i] = EndianSwap(hash[i]+initial[i]);
+
+	if (hash[7] != 0)
+		return ST_HNOTZERO;
+	for(int i=6; i>=0; --i)
+	{
+		if (hash[i] > target[i])
+		{
+			//cout << "Hash > target! :(" << endl;
+			return ST_MORETHANTARGET;
+		}
+		if (hash[i] < target[i])
+		{
+			//cout << "Hash < target! :)" << endl;
+			return ST_GOOD;
+		}
+	}
+	//cout << "Hash = target! :|" << endl;
+	return ST_MORETHANTARGET;
+
+/*	if (hash[7] == 0)
+	{
+		if (globalconfs.log_midhash)
+		{
+			fstream filu("hashes.txt", ios_base::out|ios_base::app);
+			filu << setfill('0');
+			for(uint i=0; i<8; ++i)
+				filu << setw(8) << hex << work[i] << " ";
+			filu << endl;
+		}
+		return true;
+	}
+	else
+	{
+		return false;
+	}*/
 }

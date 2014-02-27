@@ -47,13 +47,30 @@ void Wait_ms(uint n);
 
 string humantime();
 
+#include "ServerSettings.h"
+extern vector<ServerSettings> servers;
+
 struct Work
 {
+	uint server_id;
 	vector<uchar> data;
 	vector<uchar> target_share;
+	vector<uchar> midstate;
+	vector<uint> precalc;
 	bool old;
 	clock_t time;
 	ullint ntime_at_getwork;
+};
+
+struct Share
+{
+	uint server_id;
+	vector<uchar> data;
+	vector<uchar> target;
+public:
+	Share() {}
+	//Share(vector<uchar> data_, uint server_id_, uint user_id_) : server_id(server_id_),data(data_),user_id(user_id_) {}
+	Share(vector<uchar> data_,vector<uchar> target_, uint server_id_) : server_id(server_id_),data(data_),target(target_) {}
 };
 
 vector<string> Explode(string str, char delim);

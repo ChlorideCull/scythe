@@ -31,7 +31,7 @@ void Config::Load(string filename, vector<string> included_already)
 	config_values["aggression"] = "uint";
 	config_values["worksize"] = "uint";
 	config_values["threads_per_gpu"] = "uint";
-	config_values["device"] = "array";
+	config_values["device"] = "uint array";
 	config_values["kernel"] = "string";
 	config_values["save_binaries"] = "bool";
 	config_values["cpu_mining_threads"] = "uint";
@@ -44,6 +44,16 @@ void Config::Load(string filename, vector<string> included_already)
 	config_values["proxy"] = "string";
 	config_values["long_polling"] = "bool";
 	config_values["include"] = "string";
+	config_values["cpu_algorithm"] = "string";
+	config_values["bfi_int"] = "bool";
+	config_values["protocol"] = "string";
+	config_values["mine"] = "string";
+	config_values["gpu_sharemask"] = "string";
+	config_values["vectors"] = "uint";
+	config_values["sharethreads"] = "uint";
+	config_values["dont_check_shares"] = "bool";
+	config_values["lookup_gap"] = "uint";
+	config_values["gpu_thread_concurrency"] = "uint";
 
 	ifstream filu(filename.c_str());
 	while(!filu.eof())

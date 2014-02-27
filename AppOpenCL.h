@@ -8,7 +8,7 @@ public:
 	void Init();
 	void Quit();
 
-	uint GetVectorSize();
+	static uint GetVectorSize();
 };
 
 #include "pthread.h"
@@ -32,15 +32,16 @@ struct _clState
 	cl_command_queue commandQueue;
 	cl_program program;
 	cl_mem CLbuffer[2];
-	cl_mem padbuffer32;
+	cl_mem padbuffer8;
 
 	uint vectors;
 	uint thread_id;
+	uint offset;
 
 	pthread_t thread;
 
 	bool shares_available;
-	deque<vector<uchar> > shares;
+	deque<Share> shares;
 	pthread_mutex_t share_mutex;
 
 	ullint hashes;
