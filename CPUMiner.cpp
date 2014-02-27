@@ -41,9 +41,10 @@ void CPUMiner::Init()
 #endif
 		return;
 	}
-	if (globalconfs.coin.name == "bitcoin")
+	if (globalconfs.coin.name != "solidcoin")
 	{
-		cout << "Bitcoin CPU mining not supported" << endl;
+		if (globalconfs.coin.cputhreads != 0)
+			cout << "Only SolidCoin CPU mining is supported" << endl;
 		return;
 	}
 

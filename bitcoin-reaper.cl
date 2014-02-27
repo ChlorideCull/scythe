@@ -6,32 +6,10 @@ typedef uint4 u;
 typedef uint u;
 #endif
 
-#ifdef BITALIGN
-#pragma OPENCL EXTENSION cl_amd_media_ops : enable
-#define rot(x, y) amd_bitalign(x, x, y)
-#else
 #define rot(x, y) rotate(x, (u)(32-y))
-#endif
 
-#ifdef BFI_INT
-#pragma OPENCL EXTENSION cl_amd_media_ops : enable
-#define Ch(x, y, z) amd_sad(x,y,z)
-#define Ma(x, y, z) amd_sad(x^z,y,z)
-
-#ifdef BFI_INT_FIX
-#define Ch2(x, y, z) (z^(x&(y^z)))
-#define Ma2(x, y, z) (z^((x^z)&(y^z)))
-#else
-#define Ch2(x, y, z) amd_sad(x,y,z)
-#define Ma2(x, y, z) amd_sad(x^z,y,z)
-#endif
-
-#else
-#define Ch(x, y, z) (z^(x&(y^z)))
-#define Ma(x, y, z) (z^((x^z)&(y^z)))
-#define Ch2(x, y, z) Ch(x,y,z)
-#define Ma2(x, y, z) Ma(x,y,z)
-#endif
+#define Ch(x,y,z) bitselect(z,y,x)
+#define Ma(x,y,z) Ch((x^z),y,z)
 
 #define Tr(x,a,b,c) (rot(x,a)^rot(x,b)^rot(x,c))
 #define Tr1(x) Tr(x,25,11,6)
@@ -94,11 +72,7 @@ void search(	const uint state1, const uint state2, const uint state3,
 #endif
 	tmp=E+Tr1(B)+Ch(B,C,D)+0x240CA1CCU+work[1]; A += tmp; E = tmp+Tr2(F)+Ma(F,G,H);
 
-#ifdef BITALIGN
-	work[2] = (work[0]>>10)^rot(work[0],19)^amd_bitalign(work[0]^0x10000, work[0], 17);
-#else
 	work[2] = Wr1(work[0])+0x80000000;
-#endif
 	tmp=D+Tr1(A)+Ch(A,B,C)+0x2DE92C6FU+work[2]; H += tmp; D = tmp+Tr2(E)+Ma(E,F,G);
 
 	work[3] = Wr1(work[1]);
@@ -235,15 +209,15 @@ void search(	const uint state1, const uint state2, const uint state3,
 
 	B+=state1;
 	work[1]=B;
-	B+=0xcd2a11aeU+Tr1(A)+Ch2(A,0x510e527fU,0x9b05688cU);
+	B+=0xcd2a11aeU+Tr1(A)+Ch(A,0x510e527fU,0x9b05688cU);
 	work[5]=state5+F;
-	F=B+0xC3910C8EU+Tr2(E)+Ch2(E,0xfb6feee7U,0x2a01a605U);
+	F=B+0xC3910C8EU+Tr2(E)+Ch(E,0xfb6feee7U,0x2a01a605U);
 
 	C+=state2;
 	work[2]=C;
-	C+=0x0C2E12E0U+Tr1(B)+Ch2(B,A,0x510e527fU);
+	C+=0x0C2E12E0U+Tr1(B)+Ch(B,A,0x510e527fU);
 	work[6]=state6+G;
-	G=C+0x4498517BU+Tr2(F)+Ma2(F,E,0x6a09e667U);
+	G=C+0x4498517BU+Tr2(F)+Ma(F,E,0x6a09e667U);
 
 	D+=state3;
 	work[3]=D;
@@ -288,11 +262,7 @@ void search(	const uint state1, const uint state2, const uint state3,
 	work[15] = work[8] +0x11002000U+ work[7] + Wr1(work[13]);
 	tmp=D+Tr1(G)+Ch(G,F,E)+0x76F988DAU+work[15]; H += tmp; D = tmp+Tr2(C)+Ma(C,B,A);
 
-#ifdef BITALIGN
-	work[16] = work[9] + ((work[14]>>10)^rot(work[14],19)^amd_bitalign(work[14]^0x10000, work[14], 17));
-#else
 	work[16] = work[9] + Wr1(work[14]) + 0x80000000;
-#endif
 	tmp=E+Tr1(H)+Ch(H,G,F)+0x983E5152U+work[16]; A += tmp; E = tmp+Tr2(D)+Ma(D,C,B);
 
 	work[17] = work[10] + Wr1(work[15]);

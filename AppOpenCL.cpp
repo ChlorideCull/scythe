@@ -808,10 +808,11 @@ void OpenCL::Init()
 			string compile_options;
 			compile_options += " -D WORKSIZE=" + ToString(globalconfs.coin.local_worksize);
 
-			bool bfi_int = (std::find(extensions.begin(),extensions.end(), "cl_amd_media_ops") != extensions.end());
+			bool amd_gpu = (std::find(extensions.begin(),extensions.end(), "cl_amd_media_ops") != extensions.end());
+
+			if (amd_gpu)
+				compile_options += " -D AMD_GPU";
 			
-			if (bfi_int)
-				compile_options += " -D BFI_INT -D BITALIGN -D BFI_INT_FIX";
 			compile_options += " -D SHAREMASK=";
 			compile_options += globalconfs.coin.config.GetValue<string>("gpu_sharemask");
 			uint vectors = GetVectorSize();
@@ -848,76 +849,6 @@ void OpenCL::Init()
 				binaries[curr_binary] = new uchar[binarysizes[curr_binary]];
 			}
 			clGetProgramInfo(GPUstate.program, CL_PROGRAM_BINARIES, sizeof(uchar*)*device_amount, binaries, NULL);
-			if(bfi_int)
-			{
-				uint patched_instructions = 0;
-				for(uint binary_id = 0; binary_id < device_amount; ++binary_id)
-				{
-					if (binarysizes[binary_id] == 0)
-						continue;
-					uchar*& binarydata = binaries[binary_id];
-					uint pos;
-					for(pos = 0; pos < binarysizes[0] - 4; ++pos) 
-					{
-						if(GetValue<ullint>(binarydata,pos) == 0x64010101464C457FULL)
-							break;
-					}
-
-					bool firstText = true;
-
-					uint offset = GetValue<uint>(binarydata,pos + 32);
-					ushort entrySize = GetValue<ushort>(binarydata, pos + 46);
-					ushort entryCount = GetValue<ushort>(binarydata, pos + 48);
-					ushort index = GetValue<ushort>(binarydata, pos + 50);
-
-					uint header = pos + offset;
-
-					uint nameTableOffset = GetValue<uint>(binarydata,header + index * entrySize + 16);
-
-					uint entry = header;
-
-					for(int section = 0; section < entryCount; section++, entry+=entrySize) 
-					{
-						uint nameIndex = GetValue<uint>(binarydata,entry);
-						uint name = pos + nameTableOffset + nameIndex;
-
-						if(GetValue<uint>(binarydata,name) != 0x7865742E) 
-							continue;
-						if(firstText)
-						{
-							firstText = false;
-							continue;
-						}
-
-						uint offset = GetValue<uint>(binarydata,entry + 16);
-						uint size = GetValue<uint>(binarydata,entry + 20);
-
-						int sectionStart = pos + offset;
-						for(uint k = 0; k < size; k+=8) 
-						{
-							ullint instruction = GetValue<ullint>(binarydata,sectionStart + k);
-							if((instruction & 0x9003F00002001000ULL) == 0x1C00000000000ULL) 
-							{
-								++patched_instructions;
-								SetValue<ullint>(binarydata + sectionStart + k, instruction^0x1000000000000ULL);
-							}
-						}
-					}	
-				}
-				clReleaseProgram(GPUstate.program);
-
-				cout << "Patched " << patched_instructions << " BFI_INT instructions." << endl;
-
-				cl_int binary_status, errorcode_ret;
-				GPUstate.program = clCreateProgramWithBinary(clState.context, 1, &devices[device_id], &binarysizes[device_id], const_cast<const uchar**>(&binaries[device_id]), &binary_status, &errorcode_ret);
-				status = clBuildProgram(GPUstate.program, 1, &devices[device_id], compile_options.c_str(), NULL, NULL);
-
-				if(status == CL_SUCCESS) 
-					cout << "Program rebuilt." << endl;
-				else
-					cout << "Failed to BFI_INT patch kernel on device " << device_id <<  ". What now?" << endl;
-			}
-
 			for(uint binary_id = 0; binary_id < device_amount; ++binary_id)
 			{
 				if (binarysizes[binary_id] == 0)
@@ -975,7 +906,7 @@ void OpenCL::Init()
 			padbuffer8 = clCreateBuffer(clState.context, CL_MEM_READ_WRITE, bufsize, NULL, &status);
 			if (status != 0)
 			{
-				cout << "Buffer allocation failed. Either raise 'lookup_gap' or lower 'gpu_thread_concurrency'." << endl;
+				cout << "Buffer too big: allocation failed. Either raise 'lookup_gap' or lower 'gpu_thread_concurrency'." << endl;
 				throw string("");
 			}
 		}

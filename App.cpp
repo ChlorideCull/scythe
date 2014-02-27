@@ -450,7 +450,7 @@ void App::Main(vector<string> args)
 {
 	cout << "\\|||||||||||||||||||||/" << endl;
 	cout << "-  Reaper " << REAPER_VERSION << " " << REAPER_PLATFORM << "  -" << endl;
-	cout << "-       BETA 2        -" << endl;
+	cout << "-       BETA 3        -" << endl;
 	cout << "-   coded by mtrlt    -" << endl;
 	cout << "/|||||||||||||||||||||\\" << endl;
 	cout << endl;

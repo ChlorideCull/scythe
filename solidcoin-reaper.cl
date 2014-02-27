@@ -57,14 +57,8 @@ __constant uint K[64] =
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 };
 
-#ifdef BFI_INT
-#pragma OPENCL EXTENSION cl_amd_media_ops : enable
-#define Ch(x,y,z) amd_sad(x,y,z)
-#define Ma(x, y, z) Ch((x^z),y,z)
-#else
-#define Ch(x, y, z) (z^(x&(y^z)))
-#define Ma(x, y, z) Ch((x^z),y,z)
-#endif
+#define Ch(x,y,z) bitselect(z,y,x)
+#define Ma(x,y,z) Ch((x^z),y,z)
 
 #define Ch2(x, y, z) (z^(x&(y^z)))
 #define Ma2(x, y, z) Ch((x^z),y,z)
@@ -293,7 +287,7 @@ __constant ulong blakeconsts[16] =
 
 #define PAD_MASK 0x3FFFFF
 
-#ifdef BFI_INT
+#ifdef AMD_GPU
 	#pragma OPENCL EXTENSION cl_amd_media_ops : enable
 	#define READ_W32(offset) (amd_bytealign(work3_ptr[((offset)>>2)+1],work3_ptr[(offset)>>2],offset)&PAD_MASK)
 	#define PAD32_ADD(x)       index = (x); qCount += amd_bytealign(pad8to32[(index>>2)+1],pad8to32[index>>2],index);
@@ -446,7 +440,7 @@ void search(__global uint const*restrict in_param, __global uint* out_param, __g
 		work3[x%320]=(uint)(qCount)^work2[x&63];
 		PAD32_ADD(((uint)(qCount>>32)+work3[x%200])&PAD_MASK);
 		__local uint* qCough = (__local uint*)(work3+(remu316(qCount)&0x1FC));
-#ifdef BFI_INT
+#ifdef AMD_GPU
 		qCof = ((uint)(qCount>>32))&0x00FFFFFFU;
 		qCough[0] ^= amd_bytealign(qCof,((uint)qCount)&0xFF000000U,~(uint)(qCount));
 		qCough[1] ^= amd_bytealign(0U,qCof,~(uint)(qCount));

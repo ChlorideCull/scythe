@@ -1,13 +1,6 @@
-#ifdef BFI_INT
-#pragma OPENCL EXTENSION cl_amd_media_ops : enable
-#define rotl(x,y) amd_bitalign(x,x,32U-y)
-#define Ch(x,y,z) amd_sad(x,y,z)
-#define Maj(x,y,z) amd_sad(x^z,y,z)
-#else
 #define rotl(x,y) rotate(x,y)
-#define Ch(x, y, z)	((x & (y ^ z)) ^ z)
-#define Maj(x, y, z)	((x & (y | z)) | (y & z))
-#endif
+#define Ch(x,y,z) bitselect(z,y,x)
+#define Maj(x,y,z) Ch((x^z),y,z)
 
 uint4 EndianSwap4(uint4 n)
 {
