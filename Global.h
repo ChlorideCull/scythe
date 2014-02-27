@@ -26,6 +26,7 @@ struct GlobalConfs
 	vector<uint> devices;
 	string kernel;
 	bool save_binaries;
+	uint cputhreads;
 };
 
 extern GlobalConfs globalconfs;
@@ -37,5 +38,6 @@ const uint WORK_EXPIRE_TIME_SEC = 120;
 const uint SHARE_THREAD_RESTART_THRESHOLD_SEC = 20;
 
 #define foreachgpu() for(vector<_clState>::iterator it = GPUstates.begin(); it != GPUstates.end(); ++it)
+#define foreachcpu() for(vector<Reap_CPU_param>::iterator it = CPUstates.begin(); it != CPUstates.end(); ++it)
 
 #endif

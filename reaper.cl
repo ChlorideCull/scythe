@@ -284,14 +284,13 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 	uchar in[512];
 	for(uint i=0; i<128; ++i)
 		in[i] = in_param[i];
-	uchar* out = &in[128];
-	
+
 	uint nonce = get_global_id(0);
 		
-	in[92] = nonce&0xFF;
-	in[93] = (nonce>>8)&0xFF;
-	in[94] = (nonce>>16)&0xFF;
-	in[95] = (nonce>>24)&0xFF;
+	in[108] = nonce&0xFF;
+	in[109] = (nonce>>8)&0xFF;
+	in[110] = (nonce>>16)&0xFF;
+	in[111] = (nonce>>24)&0xFF;
 
 	uint64_t h[8];
 	h[0]=0x6A09E667F3BCC908UL;
@@ -433,17 +432,18 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 
 	for(uint i=0; i<16;++i)  h[i&7] ^= v[i];
 
-	U64TO8( out + 0, h[0]);
-	U64TO8( out + 8, h[1]);
-	U64TO8( out +16, h[2]);
-	U64TO8( out +24, h[3]);
-	U64TO8( out +32, h[4]);
-	U64TO8( out +40, h[5]);
-	U64TO8( out +48, h[6]);
-	U64TO8( out +56, h[7]);
+	uint8_t* work2 = in+128;
+
+	U64TO8( work2 + 0, h[0]);
+	U64TO8( work2 + 8, h[1]);
+	U64TO8( work2 +16, h[2]);
+	U64TO8( work2 +24, h[3]);
+	U64TO8( work2 +32, h[4]);
+	U64TO8( work2 +40, h[5]);
+	U64TO8( work2 +48, h[6]);
+	U64TO8( work2 +56, h[7]);
 	
-	uint8_t* work2 = out;
-	uint8_t* work3 = out+64;
+	uint8_t* work3 = work2+64;
 //a = x-1, b = x, c = x&63
 #define WORKINIT(a,b,c)   work3[a] ^= work2[c]; \
         if(work3[a]&0x80) work3[b]=in[(b+work3[a])&127]; \
@@ -475,23 +475,22 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 		WORKINIT(x-1,x,x&63);
     }
 
-	#define READ_PAD32(offset) ((uint)pad[((offset)&0x3FFFFF)] | (((uint)pad[((offset)&0x3FFFFF)+1])<<8) | (((uint)pad[((offset)&0x3FFFFF)+2])<<16) | (((uint)pad[((offset)&0x3FFFFF)+3])<<24))
+	#define READ_PAD32_R(offset) ((uint)pad[offset] | (((uint)pad[offset+1])<<8) | (((uint)pad[offset+2])<<16) | (((uint)pad[offset+3])<<24))
 
-	#define READ_PAD32_R(offset) ((uint)pad[(offset)] | (((uint)pad[(offset)+1])<<8) | (((uint)pad[(offset)+2])<<16) | (((uint)pad[(offset)+3])<<24))
-
-	#define READ_W32(offset) ((uint)work3[(offset)] + (((uint)work3[(offset)+1])<<8) + (((uint)work3[(offset)+2]&0x3F)<<16))
+	#define READ_W32(offset) ((uint)work3[offset] + (((uint)work3[(offset)+1])<<8) + (((uint)work3[(offset)+2]&0x3F)<<16))
 
 	ushort* shortptr = (ushort*)(work3+310);
-	uint* uintptr = (uint*)(work3+312);
 	uint64 qCount = shortptr[0];
-	qCount |= ((uint64)*uintptr)<<16;
 	qCount |= ((uint64)shortptr[3])<<48;
+	uint* uintptr = (uint*)(work3+312);
+	qCount |= ((uint64)*uintptr)<<16;
 
     uint nExtra=(pad[(qCount+work3[300])&0x3FFFFF]>>3)+512;
-	uint res;
     for(uint x=1;x<nExtra;++x)
     {
-        qCount+= READ_PAD32(qCount);
+	
+		uint res = qCount&0x3FFFFF;
+        qCount+= READ_PAD32_R(res);
         if(qCount&0x87878700)        ++work3[qCount%320];
 
         qCount-= pad[(qCount+work3[qCount%160])&0x3FFFFF];
@@ -529,15 +528,8 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
         if((qCount&0x07)==0x01) ++x;
 	}
 
-	uint s[8];
-	s[0]=0x6a09e667;
-	s[1]=0xbb67ae85;
-	s[2]=0x3c6ef372;
-	s[3]=0xa54ff53a;
-	s[4]=0x510e527f;
-	s[5]=0x9b05688c;
-	s[6]=0x1f83d9ab;
-	s[7]=0x5be0cd19;
+	uint s[8]= {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
+
 	Sha256_round(s, in);
 	Sha256_round(s, in+64);
 	Sha256_round(s, in+128);
@@ -550,6 +542,7 @@ __kernel void search(__global uint8_t* in_param, __global uint* out_param, __glo
 	
 	if ((s[7] & 0xFFFF) == 0)
 	{
-		out_param[nonce&0xFF] = nonce;
+		uint n2 = get_global_id(0);
+		out_param[n2&0xFF] = n2;
 	}
 }

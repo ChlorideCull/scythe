@@ -45,3 +45,17 @@ clock_t ticker()
 {
 	return clock()/(CLOCKS_PER_SEC/1000);
 }
+
+#ifdef WIN32
+#include "windows.h"
+void Wait_ms(uint n)
+{
+	Sleep(n);
+}
+#else
+#include <unistd.h>
+void Wait_ms(uint n)
+{
+	usleep(n*1000);
+}
+#endif

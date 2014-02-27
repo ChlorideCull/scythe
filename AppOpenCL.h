@@ -23,14 +23,7 @@ public:
 #endif
 #endif
 
-struct Work
-{
-	vector<uchar> data;
-	vector<uchar> target_share;
-	bool old;
-	uint time;
-};
-
+#include "Util.h"
 #include "App.h"
 
 struct _clState

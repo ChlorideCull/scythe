@@ -1,6 +1,10 @@
 #include "Global.h"
 #include "App.h"
 
+#include <stdexcept>
+
+#include "AppOpenCL.h"
+
 int main(int argc, char* argv[])
 {
 	try
@@ -16,6 +20,10 @@ int main(int argc, char* argv[])
 	catch(string s)
 	{
 		cout << "Error: " << s << endl;
+	}
+	catch(std::runtime_error s)
+	{
+		cout << "Runtime error: " << s.what() << endl;
 	}
 	catch(std::exception s)
 	{

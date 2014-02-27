@@ -17,6 +17,7 @@ uchar HexToChar(char data)
 #include "AppOpenCL.h"
 
 extern vector<_clState> GPUstates;
+extern vector<Reap_CPU_param> CPUstates;
 
 uchar HexToChar(char h, char l)
 {
@@ -71,13 +72,54 @@ GlobalConfs globalconfs;
 uint shares_valid = 0;
 uint shares_invalid = 0;
 uint shares_hwinvalid = 0;
-uint current_work_time = 0;
+clock_t current_work_time = 0;
 
 extern Work current_work;
 
 bool ShareTest(uint* workdata);
 
 bool getwork_now = false;
+
+void SubmitShare(Curl& curl, vector<uchar>& w)
+{
+	string ret = curl.SetWork(VectorToHexString(w));
+	Json::Value root;
+	Json::Reader reader;
+	bool parse_success = reader.parse(ret, root);
+	if (parse_success)
+	{
+		Json::Value result = root.get("result", "null");
+		if (result.isObject())
+		{
+			Json::Value work = result.get("work", "null");
+			if (work.isArray())
+			{
+				Json::Value innerobj = work.get(Json::Value::UInt(0), "");
+				if (innerobj.isObject())
+				{
+					Json::Value share_valid = innerobj.get("share_valid", "null");
+					if (share_valid.isBool())
+					{
+						if (share_valid.asBool())
+						{
+							++shares_valid;
+						}
+						else
+						{
+							getwork_now = true;
+							++shares_invalid;
+						}
+					}
+					//Json::Value block_valid = innerobj.get("block_valid");
+				}
+			}
+		}
+		else
+		{
+			++shares_hwinvalid;
+		}
+	}
+}
 
 bool sharethread_active;
 void* ShareThread(void* param)
@@ -108,44 +150,22 @@ void* ShareThread(void* param)
 			pthread_mutex_unlock(&it->share_mutex);
 			while(!v.empty())
 			{
-				vector<uchar>& w = v.back();
-				string ret = curl.SetWork(VectorToHexString(w));
-				Json::Value root;
-				Json::Reader reader;
-				bool parse_success = reader.parse(ret, root);
-				if (parse_success)
-				{
-					Json::Value result = root.get("result", "null");
-					if (result.isObject())
-					{
-						Json::Value work = result.get("work", "null");
-						if (work.isArray())
-						{
-							Json::Value innerobj = work.get(Json::Value::UInt(0), "");
-							if (innerobj.isObject())
-							{
-								Json::Value share_valid = innerobj.get("share_valid", "null");
-								if (share_valid.isBool())
-								{
-									if (share_valid.asBool())
-									{
-										++shares_valid;
-									}
-									else
-									{
-										getwork_now = true;
-										++shares_invalid;
-									}
-								}
-								//Json::Value block_valid = innerobj.get("block_valid");
-							}
-						}
-					}
-					else
-					{
-						++shares_hwinvalid;
-					}
-				}
+				SubmitShare(curl, v.back());
+				v.pop_back();
+			}
+		}
+		foreachcpu()
+		{
+			if (!it->shares_available)
+				continue;
+			pthread_mutex_lock(&it->share_mutex);
+			it->shares_available = false;
+			deque<vector<uchar> > v;
+			v.swap(it->shares);
+			pthread_mutex_unlock(&it->share_mutex);
+			while(!v.empty())
+			{
+				SubmitShare(curl, v.back());
 				v.pop_back();
 			}
 		}
@@ -187,7 +207,7 @@ void* LongPollThread(void* param)
 void App::Main(vector<string> args)
 {
 	cout << "/--------------------------------------\\" << endl;
-	cout << "|  Reaper version 0.05, coded by mtrlt |" << endl;
+	cout << "|  Reaper version 0.06, coded by mtrlt |" << endl;
 	cout << "|    Donations are welcome! Thanks!    |" << endl;
 	cout << "|  sPuLn5UqBWMBdZF4JVx9GGfFiX55rpKQwR  |" << endl;
 	cout << "\\--------------------------------------/" << endl;
@@ -215,6 +235,8 @@ void App::Main(vector<string> args)
 	for(uint i=0; i<numdevices; ++i)
 		globalconfs.devices.push_back(config.GetValue<uint>("device", i));
 
+	globalconfs.cputhreads = config.GetValue<uint>("cpu_mining_threads");
+
 	if (globalconfs.local_worksize > globalconfs.global_worksize)
 	{
 		cout << "Aggression is too low for the current worksize. Increasing." << endl;
@@ -235,12 +257,13 @@ void App::Main(vector<string> args)
 	pthread_create(&sharethread, NULL, ShareThread, &curl);
 
 	opencl.Init();
+	cpuminer.Init();
 
 	Parse(curl.GetWork());
 
 	pthread_t longpollthread;
 	LongPollThreadParams lp_params;
-	uint work_update_period_ms = 8000;
+	int work_update_period_ms = 8000;
 	if (longpoll_active)
 	{
 		cout << "Activating long polling." << endl;
@@ -250,17 +273,17 @@ void App::Main(vector<string> args)
 		pthread_create(&longpollthread, NULL, LongPollThread, &lp_params);
 	}
 
-	int ticks = ticker();
-	int starttime = ticker();
+	clock_t ticks = ticker();
+	clock_t starttime = ticker();
 	workupdate = ticker();
 
-	uint sharethread_update_time = ticker();
+	clock_t sharethread_update_time = ticker();
 
 	while(true)
 	{
 		Wait_ms(100);
 		{
-			int timeclock = ticker();
+			clock_t timeclock = ticker();
 			if (timeclock - current_work_time >= WORK_EXPIRE_TIME_SEC*1000)
 			{
 				if (!current_work.old)
@@ -291,6 +314,10 @@ void App::Main(vector<string> args)
 				{
 					totalhashes += it->hashes;
 				}
+				foreachcpu()
+				{
+					totalhashes += it->hashes;
+				}
 				ticks += (timeclock-ticks)/1000*1000;
 				float stalepercent = 100.0f*(float)shares_invalid/float(shares_invalid+shares_valid);
 				if (shares_valid+shares_invalid == 0)
@@ -299,6 +326,7 @@ void App::Main(vector<string> args)
 			}
 		}
 	}
+	cpuminer.Quit();
 	opencl.Quit();
 	curl.Quit();
 
@@ -306,8 +334,6 @@ void App::Main(vector<string> args)
 }
 
 bool targetprinted=false;
-
-void Precalc(Work& work);
 
 pthread_mutex_t current_work_mutex = PTHREAD_MUTEX_INITIALIZER;
 Work current_work;

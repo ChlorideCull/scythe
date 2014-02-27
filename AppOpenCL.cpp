@@ -11,20 +11,6 @@ uint OpenCL::GetVectorSize()
 
 vector<_clState> GPUstates;
 
-#ifdef WIN32
-#include "windows.h"
-void Wait_ms(uint n)
-{
-	Sleep(n);
-}
-#else
-#include <unistd.h>
-void Wait_ms(uint n)
-{
-	usleep(n*1000);
-}
-#endif
-
 #define Ch(x, y, z) (z ^ (x & (y ^ z)))
 #define Ma(x, y, z) ((y & z) | (x & (y | z)))
 #define Tr(x,a,b,c) (rot(x,a)^rot(x,b)^rot(x,c))
@@ -64,7 +50,7 @@ extern unsigned char *BlockHash_1_MemoryPAD8;
 
 #include "RSHash.h"
 
-void* Reap(void* param)
+void* Reap_GPU(void* param)
 {
 	_clState* state = (_clState*)param;
 	state->hashes = 0;
@@ -99,7 +85,7 @@ void* Reap(void* param)
 			tempwork = current_work;
 			pthread_mutex_unlock(&current_work_mutex);
 			memcpy(tempdata, &tempwork.data[0], 128);
-			*(uint*)&tempdata[88] = state->thread_id;
+			*(uint*)&tempdata[104] = state->thread_id;
 		}
 		clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[0], true, 0, BLAKE_READ_BUFFER_SIZE, tempdata, 0, NULL, NULL);
 		clEnqueueWriteBuffer(state->commandQueue, state->CLbuffer[1], true, 0, KERNEL_OUTPUT_SIZE*sizeof(uint), kernel_output, 0, NULL, NULL);
@@ -114,7 +100,7 @@ void* Reap(void* param)
 			if (kernel_output[i] != 0)
 			{
 				uint result = kernel_output[i];
-				*((uint*)&tempdata[92]) = result;
+				*((uint*)&tempdata[108]) = result;
 				{
 					uchar testmem[544];
 					memcpy(testmem, tempdata, 128);
@@ -145,12 +131,12 @@ void* Reap(void* param)
 					}
 				}
 				kernel_output[i] = 0;
-				*((uint*)&tempdata[92]) = 0;
+				*((uint*)&tempdata[108]) = 0;
 			}
 		}
 		state->hashes += globalconfs.global_worksize;
 
-		++*(uint*)&tempdata[84];
+		++*(uint*)&tempdata[100];
 	}
 	pthread_exit(NULL);
 }
@@ -159,6 +145,12 @@ _clState clState;
 
 void OpenCL::Init()
 {
+	if (globalconfs.threads_per_device == 0)
+	{
+		cout << "No GPUs selected." << endl;
+		return;
+	}
+
 	cl_int status = 0;
 
 	cl_uint numPlatforms;
@@ -419,16 +411,17 @@ void OpenCL::Init()
 		}
 	}
 
-	if (GPUstates.size() == 0)
+	if (GPUstates.empty())
 	{
-		throw string("No devices selected. Quitting.");
+		cout << "No GPUs selected." << endl;
+		return;
 	}
 
-	cout << "Creating " << GPUstates.size() << " threads" << endl;
+	cout << "Creating " << GPUstates.size() << " GPU threads" << endl;
 	for(uint i=0; i<GPUstates.size(); ++i)
 	{
 		cout << i+1 << "...";
-		pthread_create(&GPUstates[i].thread, NULL, Reap, (void*)&GPUstates[i]);
+		pthread_create(&GPUstates[i].thread, NULL, Reap_GPU, (void*)&GPUstates[i]);
 	}
 	cout << "done" << endl;
 }

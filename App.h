@@ -3,14 +3,16 @@
 
 #include "Curl.h"
 #include "AppOpenCL.h"
+#include "CPUMiner.h"
 
 class App
 {
 private:
 	Curl curl;
 	OpenCL opencl;
+	CPUMiner cpuminer;
 
-	int workupdate;
+	clock_t workupdate;
 
 	uint getworks;
 

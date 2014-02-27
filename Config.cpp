@@ -19,6 +19,7 @@ void Config::Load( string filename )
 	config_values["device"] = "array";
 	config_values["kernel"] = "string";
 	config_values["save_binaries"] = "bool";
+	config_values["cpu_mining_threads"] = "uint";
 
 
 	ifstream filu(GetConfigFileName().c_str());

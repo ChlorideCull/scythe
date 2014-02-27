@@ -43,5 +43,14 @@ uint EndianSwap(uint n);
 #include <ctime>
 
 clock_t ticker();
+void Wait_ms(uint n);
+
+struct Work
+{
+	vector<uchar> data;
+	vector<uchar> target_share;
+	bool old;
+	clock_t time;
+};
 
 #endif
